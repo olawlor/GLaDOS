@@ -10,7 +10,10 @@ void print(const char *str) {
   const int n=128;
   CHAR16 widestr[n];
   int out=0;
-  while (*str!=0 && out<n-1) { widestr[out++]=(CHAR16)*str++; }
+  while (*str!=0 && out<n-2) { 
+    if (*str=='\n') widestr[out++]=(CHAR16)'\r'; 
+    widestr[out++]=(CHAR16)*str++; 
+  }
   widestr[out++]=0; // add nul char at end
   
   // Call UEFI to actually print the string
@@ -20,7 +23,7 @@ void print(const char *str) {
 /* Print a string, plus a newline */
 void println(const char *data) {
   if (data) print(data);
-  print("\r\n");
+  print("\n");
 }
 
 /* Print an unsigned long as this many hex digits */
