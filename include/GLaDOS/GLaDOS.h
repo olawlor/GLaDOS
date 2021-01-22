@@ -2,20 +2,28 @@
   Group Led and Designed Operating System (GLaDOS)
   
   A UEFI-based C++ operating system.
+  
+  Dr. Orion Lawlor and the UAF CS 321 class, 2021-01 (Public Domain)
 */
 #ifndef __GLADOS_GLADOS_H
 #define __GLADOS_GLADOS_H
 
-extern "C" {
-  // This is the Intel EFI headers.
-  //  All the functions are plain C.
-  #include <efi/efi.h>
-};
 
 /// This is compiled with a Windows-type compiler, so 
 ///   "long" is only 4 bytes, even on a 64-bit machine.
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
+
+// Fatal error in kernel: prints the error message and hangs.
+void panic(const char *why,uint64_t number=0);
+
+
+extern "C" {
+  // This is the Intel EFI headers.
+  //  All the functions there are plain C.
+  #include <efi/efi.h>
+};
+
 
 /// At boot, we define a global variable to store the EFI SystemTable API:
 /// See include/efi/efiapi.h for definition of EFI_SYSTEM_TABLE,
@@ -25,6 +33,8 @@ extern EFI_SYSTEM_TABLE *ST;
 /// This macro for errors in this EFI system table function call.
 #define UEFI_CHECK(fnCall) check_error(fnCall,#fnCall,__LINE__)
 extern void check_error(UINT64 error,const char *function,int line);
+
+
 
 /// Erase the screen
 extern void clear_screen(void);
@@ -36,6 +46,11 @@ extern void print(int value);
 extern void print(int64_t value);
 extern void print(uint64_t value);
 extern void print_hex(uint64_t value,long digits=16,char separator=' ');
+
+
+
+#include "memory/memory.h" // galloc/gfree
+
 
 /** Read a Unicode char from the keyboard
    or as a negative number scan code like:

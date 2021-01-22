@@ -1,5 +1,7 @@
 /*
   Input/Output handling for GLaDOS
+  
+  Dr. Orion Lawlor and the UAF CS 321 class, 2021-01 (Public Domain)
 */
 #include "GLaDOS/GLaDOS.h"
 
@@ -84,22 +86,6 @@ void print(uint64_t value) {
   print_long_internal(value,16,1,0);
 }
 
-/* Called by UEFI_CHECK macro */
-void check_error(UINT64 error,const char *function,int line) {
-  if (error!=0) {
-    println("UEFI call error: ");
-    print("UEFI error code =");
-    print_hex(error);
-    println();
-    print(" returned from UEFI function=");
-    println(function);
-    println();
-    print("  from source code line=");
-    print(line);
-    while (true) {}
-  }
-}
-
 
 // Scan codes for various key presses
 enum {
@@ -179,7 +165,15 @@ void handle_commands(void)
          ptr++;
       }
     }
-    
+    else if (cmd=='n') { // try out operator new
+        int *p=new int;
+        print("Operator new returns pointer: ");
+        print((uint64_t)p);
+        *p=3;
+        print(" and writing a 3 reads back ");
+        print(*p);
+        println();
+    }
     else if (cmd=='f') { // read a file 
       // See: https://stackoverflow.com/questions/32324109/can-i-write-on-my-local-filesystem-using-efi
       

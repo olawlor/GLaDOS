@@ -26,7 +26,7 @@ CFLAGS=$(WARNINGS) $(OPTIMIZE)	$(EFI_CFLAGS) -I.  -Iinclude
 LDFLAGS=$(EFI_LDFLAGS)
 
 
-OBJ=boot.o io.o
+OBJ=boot.o io.o util.o
 KERNEL=glados.efi
 DRIVE=my_efi.hdd
 
@@ -38,6 +38,9 @@ boot.o: boot.cpp
 	clang $< $(CFLAGS)  -c 
 
 io.o: io.cpp
+	clang $< $(CFLAGS)  -c 
+
+util.o: util.cpp
 	clang $< $(CFLAGS)  -c 
 
 # This is the main linker line, to build the actual .efi kernel file:

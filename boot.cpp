@@ -3,6 +3,8 @@
   
   A UEFI-based C++ operating system
   by the University of Alaska Fairbanks.
+  
+  Dr. Orion Lawlor and the UAF CS 321 class, 2021-01 (Public Domain)
 */
 #include "GLaDOS/GLaDOS.h"
 
