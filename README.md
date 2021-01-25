@@ -5,7 +5,7 @@ Built in C++ on top of EFI, fully 64-bit.
 
 Installation requirements:
 
-	sudo apt-get install build-essentials clang lld  mtools  qemu-system-x86
+	sudo apt-get install build-essential clang lld  mtools  qemu-system-x86
 
 Needs a recent make, clang, lld, and mtools to build.
 This should build inside the Windows Subsystem for Linux,

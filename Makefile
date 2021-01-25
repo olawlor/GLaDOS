@@ -82,5 +82,5 @@ clean:
 	- rm $(KERNEL) *.o
 
 apt-get:
-	sudo apt-get install build-essentials clang lld  mtools  qemu-system-x86
+	sudo apt-get install build-essential clang lld  mtools  qemu-system-x86
 
