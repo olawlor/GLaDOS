@@ -58,4 +58,20 @@ void __std_terminate(uint64_t unknown_args)
     panic("Compiler called __std_terminate (exception stuff?)",unknown_args);
 }
 
+/*
+ clang automatically calls this function before declaring large local variables
+  (if you don't add -mno-stack-arg-probe, only supported in recent clang builds).
+ It's supposed to check to see if the stack is out of space.
+*/
+extern "C"
+void __chkstk(void) 
+{
+    /* ignore for now */
+}
 
+/* clang automatically adds this if you declare a global with a destructor */
+extern "C"
+void atexit(void (*exit_function)(void))
+{
+    /* ignore for now, we don't even have shutdown yet */
+}

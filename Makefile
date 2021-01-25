@@ -11,7 +11,7 @@ OPTIMIZE=-O1
 EFI_CFLAGS=-target x86_64-unknown-windows \
         -ffreestanding \
         -fshort-wchar \
-        -fno-stack-protector -mno-stack-arg-probe \
+        -fno-stack-protector \
         -mno-red-zone \
         -Iinclude/efi -Iinclude/efi/x86_64
 
