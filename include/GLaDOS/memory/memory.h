@@ -6,11 +6,12 @@
 #ifndef __GLADOS_MEMORY_H
 #define __GLADOS_MEMORY_H
 
-// These implementation files bring in galloc and gfree.
+// These implementation files define the functions galloc and gfree.
 //   You only need one of them, comment out the unused ones.
 //   (and feel free to add a new one with the same interface!)
-//#include "memory_bump.h"
-#include "memory_region.h"
+//#include "memory_bump.h" //<- easy to understand
+#include "memory_region.h" //<- has "free" (sustainable)
+
 
 
 #if GLaDOS_IMPLEMENT_MEMORY

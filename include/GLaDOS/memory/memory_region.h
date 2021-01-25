@@ -54,28 +54,29 @@ inline region_t region_for_size(uint64_t size)
 	else return (__builtin_clzll((size+3)/4-1)^63); 
 }
 
-// Compute this region's size, in bytes
+// Compute this region's block size, in bytes
 inline uint64_t size_for_region(region_t r)
 {
 	return 8ull<<r;
 }
 
 // Memory blocks not in use are stored in this linked list.
-struct region_freelist {
-	region_freelist *next; // points to next entry in list, or 0 if end.
+struct region_block {
+	region_block *next; // points to next entry in list, or 0 if end.
 };
 
 /// Each *thread* should store a separate free list for each region.
-extern IntrusiveList<region_freelist> freelist[NUM_REGIONS];
+extern IntrusiveList<region_block> freelist[NUM_REGIONS];
 
 /// This is called when we need to add space to the freelist
 void *galloc_slowpath(uint64_t size);
 
-/// Inlined (fast path) memory allocation.  This works like malloc/calloc
+/// Inlined (fast path) memory allocation.  This works like malloc/calloc,
+/// Except: it's always zeroed memory, it's always aligned.
 inline void *galloc(uint64_t size)
 {
 	region_t r=region_for_size(size);
-	region_freelist *buffer=freelist[r].pop(); // grab the freelist head
+	region_block *buffer=freelist[r].pop(); // grab the freelist head
 	if (buffer) {
 		buffer->next=0; // whole buffer should be zeroed before user gets it
 		return buffer;
@@ -88,13 +89,13 @@ inline void *galloc(uint64_t size)
 inline void gfree(void *ptr)
 {
 	region_t r=region_for_pointer(ptr);
-	region_freelist *buffer=(region_freelist *)ptr;
+	region_block *buffer=(region_block *)ptr;
 
 #if 1 //<- fixme: add a GLaDOS_PARANOID config option (and a config.h!)
 	// Scrub all user data from this buffer (for security)
 	//  Entry i=0 becomes buffer->next and is overwritten below.
 	uint64_t buffersize=(1ULL<<r); // size in 8-byte uint64_t's
-	for (uint64_t i=1;i<buffersize;i++)
+	for (uint64_t i=0;i<buffersize;i++)
 		((uint64_t *)buffer)[i]=0ul;
 #endif
 
@@ -109,7 +110,7 @@ inline void gfree(void *ptr)
 
 
 /// Each *thread* should store a separate free list for each region.
-IntrusiveList<region_freelist> freelist[NUM_REGIONS];
+IntrusiveList<region_block> freelist[NUM_REGIONS];
 
 
 /// This is called when we need to add space to the freelist
@@ -117,7 +118,7 @@ void *galloc_slowpath(uint64_t size)
 {
 	region_t r=region_for_size(size);
 	if (r<0||r>REGION_SHIFT) {
-		// Allocation too big--fall back to page table here?
+		// Allocation too big--FIXME: fall back to page table here?
 		panic("Allocation too big for galloc:",size);
 	}
 	
@@ -142,7 +143,7 @@ void *galloc_slowpath(uint64_t size)
 	for (int b=nbuffers-1;b>=0;b--)
 	{
 		char *start=((char *)base)+b*buffersize;
-		region_freelist *buffer=(region_freelist *)start;
+		region_block *buffer=(region_block *)start;
 		if (b==0) {
 		    return buffer; //<- return the last buffer to the user
 		}

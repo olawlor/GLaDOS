@@ -173,6 +173,7 @@ void handle_commands(void)
         print(" and writing a 3 reads back ");
         print(*p);
         println();
+        delete int;
     }
     else if (cmd=='f') { // read a file 
       // See: https://stackoverflow.com/questions/32324109/can-i-write-on-my-local-filesystem-using-efi
