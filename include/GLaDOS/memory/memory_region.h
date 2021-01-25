@@ -6,6 +6,8 @@
   Dr. Orion Lawlor and the UAF CS 321 class, 2021-01 (Public Domain)
 */
 
+#include "GLaDOS/utility/List.h"
+
 // This is the memory address where the region allocations start.
 //  The high bits of this pointer are arbitrary, but
 //   hopefully it doesn't hit anything important in UEFI!
@@ -64,7 +66,7 @@ struct region_freelist {
 };
 
 /// Each *thread* should store a separate free list for each region.
-extern region_freelist *freelist[NUM_REGIONS];
+extern IntrusiveList<region_freelist> freelist[NUM_REGIONS];
 
 /// This is called when we need to add space to the freelist
 void *galloc_slowpath(uint64_t size);
@@ -73,9 +75,8 @@ void *galloc_slowpath(uint64_t size);
 inline void *galloc(uint64_t size)
 {
 	region_t r=region_for_size(size);
-	region_freelist *buffer=freelist[r]; // check the freelist head
+	region_freelist *buffer=freelist[r].pop(); // grab the freelist head
 	if (buffer) {
-		freelist[r]=buffer->next; // remove us from the list
 		buffer->next=0; // whole buffer should be zeroed before user gets it
 		return buffer;
 	}
@@ -97,9 +98,8 @@ inline void gfree(void *ptr)
 		((uint64_t *)buffer)[i]=0ul;
 #endif
 
-	// Link the buffer into our freelist
-	buffer->next=freelist[r];
-	freelist[r]=buffer;
+	// Add this buffer into our freelist
+	freelist[r].push(buffer);
 }
 
 
@@ -109,8 +109,7 @@ inline void gfree(void *ptr)
 
 
 /// Each *thread* should store a separate free list for each region.
-region_freelist *freelist[NUM_REGIONS]={0};
-
+IntrusiveList<region_freelist> freelist[NUM_REGIONS];
 
 
 /// This is called when we need to add space to the freelist
@@ -136,7 +135,7 @@ void *galloc_slowpath(uint64_t size)
 	//	(int)nbuffers,base,(int)r);
 	print("galloc: Initializing buffers for region ");
 	print((int)r);
-	print(" at pointer ");
+	print(" from pointer ");
 	print((uint64_t)base);
 	println();
 	
@@ -145,15 +144,10 @@ void *galloc_slowpath(uint64_t size)
 		char *start=((char *)base)+b*buffersize;
 		region_freelist *buffer=(region_freelist *)start;
 		if (b==0) {
-		    print("   Finished, freelist=");
-		    print((uint64_t)freelist[r]);
-		    println();
-		    
 		    return buffer; //<- return the last buffer to the user
 		}
-		// link the other buffers into the freelist
-		buffer->next=freelist[r];
-		freelist[r]=buffer;
+		// Add to our freelist
+		freelist[r].push(buffer);
 	}
 	return 0; //<- never reached, we return at b==0 (but gcc whines)
 }
