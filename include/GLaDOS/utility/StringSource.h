@@ -1,5 +1,5 @@
 /*
-  C++ classes for linked lists.
+  C++ classes for demand-created strings, a "string source".
   
   Group Led and Designed Operating System (GLaDOS)
   A UEFI-based C++ operating system.
@@ -10,11 +10,18 @@
 #define __GLADOS_UTILITY_STRINGSOURCE_H
 
 
-/* Represents a source of UTF-8 printable character data.
+/**
+  Represents a source of UTF-8 printable character data.
   Parent class, can be inherited from. 
+  
+  Normally doesn't actually store any data, just points to
+  some existing copy, so it's cheap to create and manipulate.
+  Long strings can be generated on the fly.
   
   Honestly should be abstract, but allowing construction from 
   bare buffers and "char *" makes string handling a lot cleaner for users.
+  For example, a function taking a const StringSource &src
+  can take a "char *" or a raw ByteBuffer as an argument.
 */
 class StringSource {
 public:
@@ -55,7 +62,9 @@ protected:
 };
 
 
-/* Concatenate the data from two StringSource objects */
+/** Concatenate the data from two StringSource objects.
+  This will output the data from s0 first, then the data from s1.
+*/
 class ConcatStringSources final : public StringSource {
 public:
     ConcatStringSources(const StringSource &s0_,const StringSource &s1_)
@@ -86,14 +95,17 @@ private:
     mutable int endIndex0;
 };
 
-/* This free operator+ lets you combine two StringSources */
+/** This free operator+ lets you concatenate any two StringSources.
+    auto fullName=baseName+".txt";
+*/
 inline ConcatStringSources operator+(const StringSource &s0,const StringSource &s1)
 {
     return ConcatStringSources(s0,s1);
 }
 
 
-/* This one is kinda a mess, but lets you substitute a char for a ByteBuffer.
+/**
+ Lets you substitute a char for a ByteBuffer inside a string.
  This lets you, for example, replace '\n' (old) with "\r\n" (good).
 */
 class TransformStringSource : public StringSource {
@@ -154,7 +166,8 @@ private:
     mutable uint64_t offset; // location in buf
 };
 
-// Utilty function to build a transform string source
+/// Utilty function to build a transform string source.
+///   Usage:   auto escaped=xform('/',"SLASH",filePathString);
 inline TransformStringSource xform(Byte old,const ByteBuffer &good,const StringSource &src)
 {
     return TransformStringSource(old,good,src);

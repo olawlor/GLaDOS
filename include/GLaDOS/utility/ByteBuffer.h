@@ -1,5 +1,5 @@
 /*
-  C++ classes for linked lists.
+  C++ classes for blocks of raw memory, a "Byte Buffer".
   
   Group Led and Designed Operating System (GLaDOS)
   A UEFI-based C++ operating system.
@@ -21,7 +21,7 @@ inline uint64_t strlen(const char *cstr) {
 /// Used when accessing raw memory
 typedef unsigned char Byte;
 
-/*
+/**
  Represents an area of memory, used for:
     - Memory allocation
     - File I/O
@@ -30,21 +30,21 @@ typedef unsigned char Byte;
 */
 class ByteBuffer {
 public:
-    // Create a ByteBuffer representing this start location and number of bytes.
+    /// Create a ByteBuffer representing this start location and number of bytes.
     ByteBuffer(void *startPointer,uint64_t lengthInBytes)
     {
         start=(Byte *)startPointer;
         length=lengthInBytes;
     }
     
-    // Create a ByteBuffer for this C string
+    /// Create a ByteBuffer for this C string
     ByteBuffer(const char *str)
     {
         start=(Byte *)str;
         length=strlen(str);
     }
     
-    // Empty ByteBuffer
+    /// Create an empty ByteBuffer
     ByteBuffer()
     {
         start=0;
@@ -76,7 +76,7 @@ public:
     
 // FIXME: Add more utility functions here!
     
-    // Support C++ iterator begin / end interface for bytes (Is limiting this to bytes a good idea?)
+    /// Support C++ iterator begin / end interface for bytes (Is limiting this to bytes a good idea?)
     Byte *begin() const { return start; }
     Byte *end() const { return start+length; }
     
