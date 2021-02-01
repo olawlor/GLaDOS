@@ -34,19 +34,21 @@ extern EFI_SYSTEM_TABLE *ST;
 #define UEFI_CHECK(fnCall) check_error(fnCall,#fnCall,__LINE__)
 extern void check_error(UINT64 error,const char *function,int line);
 
+/// Widely used utilities
+#include "utility/ByteBuffer.h"
+#include "utility/StringSource.h"
 
 
 /// Erase the screen
 extern void clear_screen(void);
 
 /// Print stuff to the console
-extern void print(const char *str);
-extern void println(const char *str=0); 
+extern void print(const StringSource &str);
+extern void println(const StringSource &str=StringSource()); 
 extern void print(int value); 
 extern void print(int64_t value);
 extern void print(uint64_t value);
 extern void print_hex(uint64_t value,long digits=16,char separator=' ');
-
 
 
 #include "memory/memory.h" // galloc/gfree

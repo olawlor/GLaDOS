@@ -7,14 +7,21 @@
 
 
 /* Print an ordinary ASCII string */
-void print(const char *str) {
+void print(const StringSource &str) {
+  auto xf=xform('\n',"\r\n",str);
+  
   // Widen string to UTF-16 used by UEFI
   const int n=128;
   CHAR16 widestr[n];
   int out=0;
-  while (*str!=0 && out<n-2) { 
-    if (*str=='\n') widestr[out++]=(CHAR16)'\r'; 
-    widestr[out++]=(CHAR16)*str++; 
+  
+  ByteBuffer buf; int index=0;
+  while (xf.get(buf,index++)) {
+    for (char c:buf) {
+        if (out<n-2) { 
+           widestr[out++]=(CHAR16)c; 
+        } // else FIXME: print intermediate strings if needed
+    }
   }
   widestr[out++]=0; // add nul char at end
   
@@ -23,8 +30,8 @@ void print(const char *str) {
 }
 
 /* Print a string, plus a newline */
-void println(const char *data) {
-  if (data) print(data);
+void println(const StringSource &str) {
+  print(str);
   print("\n");
 }
 

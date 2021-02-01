@@ -8,6 +8,8 @@
 */
 #include "GLaDOS/GLaDOS.h"
 
+
+
 // We define a global variable to store the EFI SystemTable API:
 EFI_SYSTEM_TABLE *ST=0;
 
@@ -27,7 +29,26 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
   // Read and write chars
   println("Hello.  This is GLaDOS, for science.");
-  print_hex(0xc0de600d);
+  //print_hex(0xc0de600d);
+  /*
+  for (int i=0;i<100000000;i++) {
+      int *ptr=new int[1000]; // (int *)galloc(sizeof(int));
+      *ptr=3+i;
+      
+      if (i%1000 == 0) {
+          print("We just allocated ");
+          print(sizeof(int));
+          print(" bytes at ");
+          print_hex((uint64_t)ptr);
+          
+          print("Read back: ");
+          print(*ptr);
+          
+          println();
+      }
+      delete[] ptr;
+  }
+  */
   
   handle_commands();
 

@@ -1,5 +1,10 @@
 /*
   C++ classes for linked lists.
+  
+  Group Led and Designed Operating System (GLaDOS)
+  A UEFI-based C++ operating system.
+  
+  Dr. Orion Lawlor and the UAF CS 321 class, 2021-01 (Public Domain)
 */
 #ifndef __GLADOS_UTILITY_LIST_H
 #define __GLADOS_UTILITY_LIST_H
