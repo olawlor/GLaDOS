@@ -174,6 +174,25 @@ inline TransformStringSource xform(Byte old,const ByteBuffer &good,const StringS
 }
 
 
+/** Streams string data out of a file */
+class FileDataStringSource : public StringSource {
+public:
+    FileDataStringSource(EFI_FILE_PROTOCOL* file_) { file=file_; }
+    
+    // Read file data (block by block)
+    bool get(ByteBuffer &buf,int index) const;
+    
+private:
+    EFI_FILE_PROTOCOL* file; // opened file (EFI)
+    enum {BLOCK_SIZE=512}; // I/O buffer size
+    mutable Byte block[BLOCK_SIZE]; // I/O buffer
+};
+
+/// Return contents of a file as a StringSource
+FileDataStringSource FileContents(CHAR16 *filename);
+
+
+
 
 #endif
 

@@ -8,7 +8,7 @@
 
 /* Print an ordinary ASCII string */
 void print(const StringSource &str) {
-  auto xf=xform('\n',"\r\n",str);
+  //auto xf=xform('\n',"\r\n",str);
   
   // Widen string to UTF-16 used by UEFI
   const int n=128;
@@ -16,11 +16,13 @@ void print(const StringSource &str) {
   int out=0;
   
   ByteBuffer buf; int index=0;
-  while (xf.get(buf,index++)) {
+  while (str.get(buf,index++)) {
     for (char c:buf) {
         if (out<n-2) { 
+           if (c=='\n') widestr[out++]=(CHAR16)'\r';
            widestr[out++]=(CHAR16)c; 
         } // else FIXME: print intermediate strings if needed
+        //else break;
     }
   }
   widestr[out++]=0; // add nul char at end
@@ -132,6 +134,47 @@ void clear_screen(void) {
 
 
 
+
+/// Return contents of a file as a StringSource
+FileDataStringSource FileContents(CHAR16 *filename)
+{
+    static EFI_FILE_PROTOCOL* root = 0;
+    if (!root) { // first time, open the root volume
+        EFI_GUID guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+
+        EFI_HANDLE* handles = 0;   
+        UINTN handleCount = 0;
+        UEFI_CHECK(ST->BootServices->LocateHandleBuffer(
+        ByProtocol, &guid, NULL, &handleCount, &handles));
+
+        EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs = 0;
+        UEFI_CHECK(ST->BootServices->HandleProtocol(
+            handles[0],&guid,(void **)&fs));
+
+        println("Opening root volume:");
+        UEFI_CHECK(fs->OpenVolume(fs, &root));
+    }
+    
+    EFI_FILE_PROTOCOL* file = 0;
+    UEFI_CHECK(root->Open(root,&file,
+        (CHAR16 *)filename, EFI_FILE_MODE_READ, 
+        EFI_FILE_READ_ONLY | EFI_FILE_HIDDEN | EFI_FILE_SYSTEM));
+    
+    return FileDataStringSource(file);
+}
+
+bool FileDataStringSource::get(ByteBuffer &buf,int index) const
+{
+    UINTN size=BLOCK_SIZE;
+    UEFI_CHECK(file->Read(file,&size,block));
+    print(size); println(" bytes read from file in file.get");
+    if (size==0) return false; // no file data
+    buf=ByteBuffer(block,size);
+    return true;
+}
+
+
+
 void handle_commands(void)
 {
   println();
@@ -182,6 +225,9 @@ void handle_commands(void)
         println();
         delete p;
     }
+    else if (cmd=='g') { // "good" file read
+        println("File contents: "+FileContents((CHAR16 *)L"APPS\\DATA.DAT"));
+    }
     else if (cmd=='f') { // read a file 
       // See: https://stackoverflow.com/questions/32324109/can-i-write-on-my-local-filesystem-using-efi
       
@@ -214,7 +260,10 @@ void handle_commands(void)
       UEFI_CHECK(file->Read(file,&size,buf));
       
       println("Read data:");
+      print(size);
+      println(" bytes of data");
       println(buf);
+      println("That's the file data, closing the file.");
       
       UEFI_CHECK(ST->BootServices->FreePool(handles));
     }
