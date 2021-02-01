@@ -13,6 +13,7 @@ EFI_CFLAGS=-target x86_64-unknown-windows \
         -fshort-wchar \
         -fno-stack-protector \
         -mno-red-zone \
+	-fno-rtti \
         -Iinclude/efi -Iinclude/efi/x86_64
 
 # These are the ldd flags to emit an EFI executable
