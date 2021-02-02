@@ -49,6 +49,7 @@ extern void check_error(UINT64 error,const char *function,int line);
 extern void clear_screen(void);
 
 /// Print stuff to the console
+extern void print(const char *str);
 extern void print(const StringSource &str);
 extern void println(const StringSource &str=StringSource()); 
 extern void print(int value); 

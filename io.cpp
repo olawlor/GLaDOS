@@ -7,7 +7,7 @@
 
 uint64_t trace_code;
 
-/* Print an ordinary ASCII string */
+/// Print a StringSource
 void print(const StringSource &str) {
   // The console needs \r\n (DOS newline), 
   //   but our strings use the C/C++ \n, so expand the newlines:
@@ -17,13 +17,17 @@ void print(const StringSource &str) {
   ST->ConOut->OutputString(ST->ConOut,CHAR16ify(xf));
 }
 
-/* Print a string, plus a newline */
+/// Print a string, plus a newline
 void println(const StringSource &str) {
-  print(str);
-  print("\n");
+  print(str+"\n");
 }
 
-/* Print an unsigned long as this many hex digits */
+/// Print a normal C string (saves about 2K doing this specialization)
+void print(const char *str) {
+    print(StringSource(str));
+}
+
+/// Print an unsigned long, as this many hex digits.
 void print_hex(uint64_t value,long digits,char separator) {
   char buf[20];
   const char *chars="0123456789ABCDEF";
@@ -37,7 +41,7 @@ void print_hex(uint64_t value,long digits,char separator) {
   print(buf);
 }
 
-/* Print a signed (+/-) integer in this base, from 2 to 16 */
+/// Print a signed (+/-) integer in this base, from 2 to 16
 void print_long_internal(int64_t value,long base=10,long min_length=1,char separator=' ') {
   const char *chars="0123456789ABCDEF";
   char buf[70];

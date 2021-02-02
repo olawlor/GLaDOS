@@ -6,7 +6,7 @@ GNU_EFI_CFLAGS=
 
 # Warnings and optimization flags
 WARNINGS=-Wall 
-OPTS=-O1 -g
+OPTS=-O1
 
 # These are the clang compiler flags to build an EFI executable
 #   From https://dvdhrm.github.io/2019/01/31/goodbye-gnuefi/
