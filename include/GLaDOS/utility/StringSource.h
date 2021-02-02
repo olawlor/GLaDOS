@@ -115,49 +115,14 @@ public:
     
     /*
      Scan through looking for the old char.
-     FIXME: this is horrifically confusing, and misuses "mutable" badly.
-     The key problem seems to be using our own index variables.
+     Return src unmodified where possible,
+     or substitute good for old.
     */
-    bool get(ByteBuffer &buf,int index) const 
-    {
-        if (offset>=srcBuf.getLength())
-        {
-            // Need to fetch the next source buffer
-            if (!src.get(srcBuf,srcIndex)) return false; // source is done
-            srcIndex++; // we now have that in buf
-            offset=0; // scan it from the beginning
-        }
-        
-        // Find the end of the buffer, or the old char
-        uint64_t start=offset;
-        Byte *array=srcBuf.begin();
-        while (true) {
-            if (offset>=srcBuf.getLength()) 
-            { // We walked off the end of this buffer, return old data
-                buf=srcBuf.splitAtByte(start,offset-start);
-                return true;
-            }
-            if (array[offset]==old)
-            { // We hit the old char
-                if (start==offset) 
-                { // We're ready to return the substitute buffer
-                    buf=good;
-                    offset++; // skip over the old data next time
-                    return true;
-                }
-                else {
-                    // Return unmodified data up to old
-                    buf=srcBuf.splitAtByte(start,offset-start);
-                    return true;
-                }
-            }
-            offset++;
-        }
-    }
+    bool get(ByteBuffer &buf,int index) const;
     
 private:
     Byte old;
-    const ByteBuffer &good;
+    ByteBuffer good;
     const StringSource &src;
     
     // Used during "get".  ASSUMES a single caller with clean index sweep (CAUTION!)
@@ -173,6 +138,61 @@ inline TransformStringSource xform(Byte old,const ByteBuffer &good,const StringS
     return TransformStringSource(old,good,src);
 }
 
+#if GLaDOS_IMPLEMENT_STRING /* include function definitions */
+/**
+   Scan through src looking for the old char.
+     Return src unmodified where possible,
+     or substitute good for old.
+  
+  This is honestly quite confusing. 
+*/
+bool TransformStringSource::get(ByteBuffer &buf,int index) const
+{
+    if (offset>=srcBuf.getLength())
+    { // Need to fetch the next source buffer
+        if (!src.get(srcBuf,srcIndex)) 
+        { // Now source string is done
+            srcIndex=0; //<- get ready for next pass
+            return false; 
+        }
+        srcIndex++; // we now have that in buf
+        offset=0; // scan it from the beginning
+    }
+    
+    // Find the end of the buffer, or the old char
+    uint64_t start=offset;
+    Byte *array=srcBuf.begin();
+    while (true) {
+        /* 
+         srcBuf:
+            start       old char     srcBuf end
+                      A B            C
+             -offset scans this way->
+        */
+        if (offset>=srcBuf.getLength())  // case C
+        { // We walked off the end of this buffer, return last data
+            buf=srcBuf.splitAtByte(start,offset-start);
+            return offset-start>0;
+        }
+        if (array[offset]==old)
+        { // We hit the old char
+            if (start==offset) // case B
+            { // We're ready to return the substitute buffer
+                buf=good;
+                offset++; // skip over the old data next time
+                return true;
+            }
+            else { // case A
+                // Return unmodified data up to old
+                buf=srcBuf.splitAtByte(start,offset-start);
+                return offset-start>0;
+            }
+        }
+        offset++;
+    }
+}
+#endif
+
 
 /** Streams string data out of a file */
 class FileDataStringSource : public StringSource {
@@ -184,13 +204,64 @@ public:
     
 private:
     EFI_FILE_PROTOCOL* file; // opened file (EFI)
-    enum {BLOCK_SIZE=512}; // I/O buffer size
+    enum {BLOCK_SIZE=16}; // I/O buffer size
     mutable Byte block[BLOCK_SIZE]; // I/O buffer
 };
 
 /// Return contents of a file as a StringSource
-FileDataStringSource FileContents(CHAR16 *filename);
+FileDataStringSource FileContents(const StringSource &filename);
 
+
+/// Convert a StringSource to a UTF-16 buffer of CHAR16's, with nul terminator.
+///  This is what most UEFI function calls need for strings.
+///  Example: OutputString(CHAR16ify("foo"));
+template <int MAXCHAR=1024>
+class CHAR16ify {
+public:
+    CHAR16ify(const StringSource &str) {
+        uint64_t out=0;
+        int LASTCHAR=MAXCHAR-2; // leave space for '@' and nul terminator
+        ByteBuffer buf; int strIndex=0;
+        while (str.get(buf,strIndex++)) {
+            for (char c:buf) {
+                if (out<LASTCHAR)
+                    wide[out++]=(CHAR16)c;
+                else
+                    break; // out of space in buffer
+            }
+        }
+        if (out==LASTCHAR) wide[out++]='@'; //<- mark truncated output
+        // Add nul terminator
+        if (out<MAXCHAR) wide[out++]=0;
+    }
+
+    /// This converts us to a CHAR16 *, like UEFI wants.
+    operator CHAR16 *() const { return (CHAR16 *)wide; }
+private:
+    CHAR16 wide[MAXCHAR];
+};
+
+
+/// Convert a StringSource to a vector of CHAR16.
+///  This does dynamic allocation, but works with arbitrarily long strings.
+vector<CHAR16> CHAR16_from_String(const StringSource &str);
+
+#if GLaDOS_IMPLEMENT_STRING
+vector<CHAR16> CHAR16_from_String(const StringSource &str)
+{
+    vector<CHAR16> wide;
+    
+    ByteBuffer buf; int index=0;
+    while (str.get(buf,index++)) {
+        for (char c:buf) {
+            wide.push_back((CHAR16)c);
+        }
+    }
+    
+    wide.push_back((CHAR16)0); // add nul terminator char at end
+    return wide;
+}
+#endif
 
 
 

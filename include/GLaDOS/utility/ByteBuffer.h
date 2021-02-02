@@ -51,6 +51,14 @@ public:
         length=0;
     }
     
+    /// Destruct this ByteBuffer.  
+    ///  The underlying memory is deallocated elsewhere, but we scrub to detect use-after-delete bugs
+    ~ByteBuffer()
+    {
+        start=(Byte *)0xd;
+        length=0;
+    }
+    
     /// Extract a portion of this buffer starting this many bytes in.
     ByteBuffer splitAtByte(uint64_t startByte,uint64_t newLength)
     {

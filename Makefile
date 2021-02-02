@@ -1,14 +1,17 @@
 # Makefile to build an EFI operating system drive image.
 
 # This is a local copy of Intel's EFI API
-GNU_EFI_CFLAGS=-Iinclude/efi -Iinclude/efi/x86_64
+GNU_EFI_CFLAGS=
+# -Iinclude/efi -Iinclude/efi/x86_64
 
+# Warnings and optimization flags
 WARNINGS=-Wall 
-OPTIMIZE=-O1
+OPTS=-O1 -g
 
 # These are the clang compiler flags to build an EFI executable
 #   From https://dvdhrm.github.io/2019/01/31/goodbye-gnuefi/
-EFI_CFLAGS=-target x86_64-unknown-windows \
+EFI_CFLAGS=-std=c++17 \
+        -target x86_64-unknown-windows \
         -ffreestanding \
         -fshort-wchar \
         -fno-stack-protector \
@@ -23,13 +26,16 @@ EFI_LDFLAGS=-target x86_64-unknown-windows \
         -Wl,-subsystem:efi_application \
         -fuse-ld=lld-link
 
-CFLAGS=$(WARNINGS) $(OPTIMIZE)	$(EFI_CFLAGS) -I.  -Iinclude
-LDFLAGS=$(EFI_LDFLAGS)
+CFLAGS=$(WARNINGS) $(OPTS)	$(EFI_CFLAGS) -I.  -Iinclude
+LDFLAGS=$(OPTS) $(EFI_LDFLAGS)
 
-
+# Compile these object files, link the kernel, copy to drive image:
 OBJ=boot.o io.o util.o
 KERNEL=glados.efi
 DRIVE=my_efi.hdd
+
+# Run the QEMU simulator with these args:
+QFLAGS=-L . -drive format=raw,file=$(DRIVE) -m 512
 
 
 all: run
@@ -50,7 +56,19 @@ $(KERNEL): $(OBJ)
 
 # Needs qemu and "bios-256k.bin" from OVMF (EFI firmware).
 run: $(DRIVE)
-	qemu-system-x86_64 -L . -drive format=raw,file=$(DRIVE) -m 512
+	qemu-system-x86_64 $(QFLAGS)
+
+# Connect gdb debugger with "target remote localhost:1234"
+debug: $(DRIVE)
+	qemu-system-x86_64 -s $(QFLAGS)
+
+# Disassemble the kernel
+dis: $(KERNEL)
+	objdump --adjust-vma=0xFFFFFFFEDE7F8000 -M intel -drC $(KERNEL) > dis
+
+dis_nasm: $(KERNEL)
+	ndisasm -b 64 $(KERNEL) > dis_nasm
+
 
 # This copies the kernel to a FAT16 filesystem on a floppy disk image.
 #  Uses mformat (mtools) to avoid needing root access.

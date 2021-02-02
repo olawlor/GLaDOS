@@ -29,6 +29,8 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
   // Read and write chars
   println("Hello.  This is GLaDOS, for science.");
+  print_hex((uint64_t)(void *)efi_main);
+  println(" is the address of efi_main.\n");
   //print_hex(0xc0de600d);
   /*
   for (int i=0;i<100000000;i++) {

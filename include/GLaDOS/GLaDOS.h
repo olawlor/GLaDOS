@@ -8,11 +8,15 @@
 #ifndef __GLADOS_GLADOS_H
 #define __GLADOS_GLADOS_H
 
+// Paranoia / debugging flags:
+#define GLADOS_BOUNDSCHECK 1 /* do bounds checking on array indexes */
 
+#if !GLaDOS_HOSTED
 /// This is compiled with a Windows-type compiler, so 
 ///   "long" is only 4 bytes, even on a 64-bit machine.
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
+#endif
 
 // Fatal error in kernel: prints the error message and hangs.
 void panic(const char *why,uint64_t number=0);
@@ -21,7 +25,7 @@ void panic(const char *why,uint64_t number=0);
 extern "C" {
   // This is the Intel EFI headers.
   //  All the functions there are plain C.
-  #include <efi/efi.h>
+  #include "efi/efi.h"
 };
 
 
@@ -30,14 +34,16 @@ extern "C" {
 ///  it's packed with useful stuff.
 extern EFI_SYSTEM_TABLE *ST;
 
+extern uint64_t trace_code;
+
 /// This macro for errors in this EFI system table function call.
 #define UEFI_CHECK(fnCall) check_error(fnCall,#fnCall,__LINE__)
 extern void check_error(UINT64 error,const char *function,int line);
 
-/// Widely used utilities
+/// Widely used utilities (before print and memory allocation)
 #include "utility/ByteBuffer.h"
+#include "utility/Vector.h"
 #include "utility/StringSource.h"
-
 
 /// Erase the screen
 extern void clear_screen(void);

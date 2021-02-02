@@ -5,30 +5,16 @@
 */
 #include "GLaDOS/GLaDOS.h"
 
+uint64_t trace_code;
 
 /* Print an ordinary ASCII string */
 void print(const StringSource &str) {
-  //auto xf=xform('\n',"\r\n",str);
-  
-  // Widen string to UTF-16 used by UEFI
-  const int n=128;
-  CHAR16 widestr[n];
-  int out=0;
-  
-  ByteBuffer buf; int index=0;
-  while (str.get(buf,index++)) {
-    for (char c:buf) {
-        if (out<n-2) { 
-           if (c=='\n') widestr[out++]=(CHAR16)'\r';
-           widestr[out++]=(CHAR16)c; 
-        } // else FIXME: print intermediate strings if needed
-        //else break;
-    }
-  }
-  widestr[out++]=0; // add nul char at end
+  // The console needs \r\n (DOS newline), 
+  //   but our strings use the C/C++ \n, so expand the newlines:
+  auto xf=xform('\n',"\r\n",str);
   
   // Call UEFI to actually print the string
-  ST->ConOut->OutputString(ST->ConOut,widestr);
+  ST->ConOut->OutputString(ST->ConOut,CHAR16ify(xf));
 }
 
 /* Print a string, plus a newline */
@@ -136,7 +122,7 @@ void clear_screen(void) {
 
 
 /// Return contents of a file as a StringSource
-FileDataStringSource FileContents(CHAR16 *filename)
+FileDataStringSource FileContents(const StringSource &filename)
 {
     static EFI_FILE_PROTOCOL* root = 0;
     if (!root) { // first time, open the root volume
@@ -151,18 +137,24 @@ FileDataStringSource FileContents(CHAR16 *filename)
         UEFI_CHECK(ST->BootServices->HandleProtocol(
             handles[0],&guid,(void **)&fs));
 
+        print((uint64_t)fs); println(" is address of UEFI filesystem protocol.");
         println("Opening root volume:");
         UEFI_CHECK(fs->OpenVolume(fs, &root));
     }
     
+    // Swap out web/unix style forward slash paths for
+    //  EFI's DOS\Windows style backslash paths.
+    auto slashfix=xform('/',"\\",filename);
+    
     EFI_FILE_PROTOCOL* file = 0;
     UEFI_CHECK(root->Open(root,&file,
-        (CHAR16 *)filename, EFI_FILE_MODE_READ, 
+        CHAR16ify(slashfix), EFI_FILE_MODE_READ, 
         EFI_FILE_READ_ONLY | EFI_FILE_HIDDEN | EFI_FILE_SYSTEM));
     
     return FileDataStringSource(file);
 }
 
+/// This gets called to actually read parts of the file
 bool FileDataStringSource::get(ByteBuffer &buf,int index) const
 {
     UINTN size=BLOCK_SIZE;
@@ -226,7 +218,7 @@ void handle_commands(void)
         delete p;
     }
     else if (cmd=='g') { // "good" file read
-        println("File contents: "+FileContents((CHAR16 *)L"APPS\\DATA.DAT"));
+        println("File contents: "+FileContents("APPS/DATA.DAT"));
     }
     else if (cmd=='f') { // read a file 
       // See: https://stackoverflow.com/questions/32324109/can-i-write-on-my-local-filesystem-using-efi

@@ -4,8 +4,9 @@
   Dr. Orion Lawlor and the UAF CS 321 class, 2021-01 (Public Domain)
 */
 
-
-#define GLaDOS_IMPLEMENT_MEMORY 1  /* make headers actually include function calls */
+/* make headers actually include function definitions here */
+#define GLaDOS_IMPLEMENT_MEMORY 1  
+#define GLaDOS_IMPLEMENT_STRING 1  
 
 #include "GLaDOS/GLaDOS.h"
 
