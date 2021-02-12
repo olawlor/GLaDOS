@@ -8,10 +8,32 @@
 */
 #include "GLaDOS/GLaDOS.h"
 
-
-
 // We define a global variable to store the EFI SystemTable API:
 EFI_SYSTEM_TABLE *ST=0;
+
+
+// From asm_util.s:
+extern "C" uint64_t syscall_setup(); 
+extern "C" void syscall_finish(); 
+extern "C" uint64_t handle_syscall(uint64_t syscallNumber,uint64_t arg0)
+{
+    print("  syscall ");
+    print((int)syscallNumber);
+    if (syscallNumber==1) {
+        print("write(");
+        int fd=arg0;
+        print(fd);
+        println(")");
+    }
+    if (syscallNumber==60) {
+        print("exit(");
+        int exitcode=arg0;
+        print(exitcode);
+        println(")");
+    }
+    return 0;
+}
+
 
 extern "C"
 EFI_STATUS
@@ -30,27 +52,35 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
   // Read and write chars
   println("Hello.  This is GLaDOS, for science.");
   print_hex((uint64_t)(void *)efi_main);
-  println(" is the address of efi_main.\n");
-  //print_hex(0xc0de600d);
-  /*
-  for (int i=0;i<100000000;i++) {
-      int *ptr=new int[1000]; // (int *)galloc(sizeof(int));
-      *ptr=3+i;
-      
-      if (i%1000 == 0) {
-          print("We just allocated ");
-          print(sizeof(int));
-          print(" bytes at ");
-          print_hex((uint64_t)ptr);
-          
-          print("Read back: ");
-          print(*ptr);
-          
-          println();
-      }
-      delete[] ptr;
+  print("=efi_main ");
+  
+  // Program p("APPS/PROG"); // <- aspirational interface
+  
+  // Set up syscalls  
+  print("syscalls ");
+  syscall_setup();
+  
+  // Run a program
+  FileDataStringSource exe=FileContents("APPS/PROG");
+  Byte *code=(Byte *)0x400000;
+  ByteBuffer buf; int strIndex=0;
+  while (exe.get(buf,strIndex++)) {
+     for (char c:buf) {
+        *code++ = c;
+     }
   }
-  */
+  // call start
+  typedef long (*function_t)(void);
+  function_t f=(function_t)0x401000;
+  println("Running demo {");
+  long ret=f();
+  println("}");
+  print((int)ret);
+  println(" was the return value.");
+
+  syscall_finish();
+  
+  
   
   handle_commands();
 

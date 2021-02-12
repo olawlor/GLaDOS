@@ -30,7 +30,7 @@ CFLAGS=$(WARNINGS) $(OPTS)	$(EFI_CFLAGS) -I.  -Iinclude
 LDFLAGS=$(OPTS) $(EFI_LDFLAGS)
 
 # Compile these object files, link the kernel, copy to drive image:
-OBJ=boot.o io.o util.o
+OBJ=boot.o io.o util.o asm_util.o
 KERNEL=glados.efi
 DRIVE=my_efi.hdd
 
@@ -49,6 +49,9 @@ io.o: io.cpp
 
 util.o: util.cpp
 	clang $< $(CFLAGS)  -c 
+
+asm_util.o: asm_util.s
+	nasm -f win64 $< -o $@
 
 # This is the main linker line, to build the actual .efi kernel file:
 $(KERNEL): $(OBJ)
@@ -70,9 +73,14 @@ dis_nasm: $(KERNEL)
 	ndisasm -b 64 $(KERNEL) > dis_nasm
 
 
+# Userspace program, for testing
+program: prog.s
+	nasm -f elf64 $< -o prog.o
+	ld prog.o -o APPS/prog
+
 # This copies the kernel to a FAT16 filesystem on a floppy disk image.
 #  Uses mformat (mtools) to avoid needing root access.
-$(DRIVE):  $(KERNEL)
+$(DRIVE):  $(KERNEL) program
 	#dd if=/dev/zero of="$@" bs=1k count=1440
 	mformat -i "$@" -f 1440 ::
 	mmd -i "$@" ::/EFI
@@ -101,5 +109,5 @@ clean:
 	- rm $(KERNEL) *.o
 
 apt-get:
-	sudo apt-get install build-essential clang lld  mtools  qemu-system-x86
+	sudo apt-get install build-essential clang lld nasm  mtools qemu-system-x86
 

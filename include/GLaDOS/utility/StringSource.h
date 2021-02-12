@@ -204,7 +204,7 @@ public:
     
 private:
     EFI_FILE_PROTOCOL* file; // opened file (EFI)
-    enum {BLOCK_SIZE=16}; // I/O buffer size
+    enum {BLOCK_SIZE=4096}; // I/O buffer size
     mutable Byte block[BLOCK_SIZE]; // I/O buffer
 };
 
