@@ -51,17 +51,19 @@ syscall_entry:
     push rcx ; <- CPU saved the user code address here
     
     ; Save the user's syscall parameters where we can read them
-    mov QWORD[syscall_parameters+0x00],rdi ; Linux syscall arg 0
-    mov QWORD[syscall_parameters+0x08],rsi ; Linux syscall arg 1
-    mov QWORD[syscall_parameters+0x10],rdx ; Linux syscall arg 2
-    mov QWORD[syscall_parameters+0x18],r10 ; Linux syscall arg 3
-    mov QWORD[syscall_parameters+0x20],r8 ; Linux syscall arg 4
-    mov QWORD[syscall_parameters+0x28],r9 ; Linux syscall arg 5
+    mov rcx,syscall_parameters
+    mov QWORD[rcx+0x00],rdi ; Linux syscall arg 0
+    mov QWORD[rcx+0x08],rsi ; Linux syscall arg 1
+    mov QWORD[rcx+0x10],rdx ; Linux syscall arg 2
+    mov QWORD[rcx+0x18],r10 ; Linux syscall arg 3
+    mov QWORD[rcx+0x20],r8 ; Linux syscall arg 4
+    mov QWORD[rcx+0x28],r9 ; Linux syscall arg 5
     
     ; Call our high level syscall handler
     sub rsp,32+8 ; <- win64 call convention wants this
-    mov rcx,rax; <- store syscall number where handle_syscall can read it
-    mov rdx,rdi; // syscall_parameters
+    ; win64 call: (rcx,rdx,...)
+    mov rdx,rcx; <- pointer to syscall args
+    mov rcx,rax; <- store syscall number
     call handle_syscall
     add rsp,32+8
     

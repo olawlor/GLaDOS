@@ -15,19 +15,25 @@ EFI_SYSTEM_TABLE *ST=0;
 // From asm_util.s:
 extern "C" uint64_t syscall_setup(); 
 extern "C" void syscall_finish(); 
-extern "C" uint64_t handle_syscall(uint64_t syscallNumber,uint64_t arg0)
+extern "C" uint64_t handle_syscall(uint64_t syscallNumber,uint64_t *args)
 {
     print("  syscall ");
     print((int)syscallNumber);
     if (syscallNumber==1) {
+        int fd=args[0];
+        void *ptr=(void *)args[1];
+        uint64_t len=args[2];
         print("write(");
-        int fd=arg0;
         print(fd);
         println(")");
+        if (fd==1) // stdout
+            print(ByteBuffer(ptr,len));
+        else
+            panic("Unknown fd",fd);
     }
     if (syscallNumber==60) {
         print("exit(");
-        int exitcode=arg0;
+        int exitcode=args[0];
         print(exitcode);
         println(")");
     }
