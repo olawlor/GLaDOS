@@ -50,8 +50,10 @@ void map_file_to_memory(FileDataStringSource &exe,
     uint64_t file_offset, uint64_t size, uint64_t address)
 {
     const uint64_t BLOCK=FileDataStringSource::BLOCK_SIZE;
-    int index=file_offset/BLOCK;
-    int end_index=(size+BLOCK-1)/BLOCK;
+    uint64_t index=file_offset/BLOCK;
+    uint64_t round_down=file_offset%BLOCK;
+    address-=round_down;
+    uint64_t end_index=(round_down+size+BLOCK-1)/BLOCK;
     
     print("Filling program address ");
     print(address);
