@@ -4,6 +4,7 @@ Load Linux ELF executables and run them.
 Dr. Orion Lawlor and CS 321 class, 2021-02 (Public Domain)
 */
 #include "GLaDOS/GLaDOS.h"
+#include "elf.h"
 
 // From asm_util.s:
 typedef long (*function_t)(void);
@@ -43,9 +44,36 @@ extern "C" uint64_t handle_syscall(uint64_t syscallNumber,uint64_t *args)
     return 0;
 }
 
+// Put this file's data into memory at this address.
+//  (FIXME: into program memory, not kernel memory!)
+void map_file_to_memory(FileDataStringSource &exe,
+    uint64_t file_offset, uint64_t size, uint64_t address)
+{
+    const uint64_t BLOCK=FileDataStringSource::BLOCK_SIZE;
+    int index=file_offset/BLOCK;
+    if (file_offset%BLOCK !=0)
+        panic("Bad ELF file offset ",file_offset);
+    int end_index=(size+BLOCK-1)/BLOCK;
+    
+    print("Filling program address ");
+    print(address);
+    print(" from file block ");
+    print(index);
+    println();
+    
+    // Copy the file data out to memory
+    ByteBuffer buf;
+    Byte *out=(Byte *)address;
+    while (exe.get(buf,index++)) {
+        for (Byte b:buf) *out++=b;
+        if (index>=end_index) break;
+    }
+    
+}
 
 
-void run_linux(const char *program_name)
+// Load and execute a Linux program from this file:
+int run_linux(const char *program_name)
 {
   // Program p("APPS/PROG"); // <- aspirational interface
   
@@ -53,33 +81,60 @@ void run_linux(const char *program_name)
   print("syscalls\n");
   syscall_setup();
   
-  // Run a program
-  FileDataStringSource exe=FileContents("APPS/PROG");
-  Byte *code=(Byte *)0x400000;
-  ByteBuffer buf; int strIndex=0;
-  while (exe.get(buf,strIndex++)) {
-     for (char c:buf) {
-        *code++ = c;
-     }
+  // Load a program's ELF header
+  FileDataStringSource exeELF=FileContents(program_name);
+  ByteBuffer elfHeader;
+  if (!exeELF.get(elfHeader,0)) {
+    print("Can't read ELF file.\n");
+    return -101;
   }
-  // call start
-   
-  function_t f=(function_t)0x401000;
+  const Byte *elfHeaderData=elfHeader.begin();
+  const Elf64_Ehdr *elf=(const Elf64_Ehdr *)elfHeaderData;
+  if (elf->e_machine!=EM_X86_64) {
+    print("Wrong arch!\n");
+    return -102;
+  }
+  
+  // Load each of the program's segments
+  //  SUBTLE: ELF header will go away as we read, so open file again.
+  FileDataStringSource exe=FileContents(program_name);
+  
+  // Map in each of the file's segments
+  //   FIXME: sanity check these before mapping in
+  for (int p=0;p<elf->e_phnum;p++) {
+        const Byte *pstart=elfHeaderData + elf->e_phoff + p*elf->e_phentsize;
+        const Elf64_Phdr *ph=(const Elf64_Phdr *)pstart;
+        if (ph->p_type==PT_LOAD) // <- we only care about loadable segments
+        {
+        /*  // FIXME: respect RWX flags for file's pieces
+            bool R=(ph->p_flags&PF_R);
+            bool W=(ph->p_flags&PF_W);
+            bool X=(ph->p_flags&PF_X);
+        */
+            
+            map_file_to_memory(exe,ph->p_offset,ph->p_memsz,ph->p_vaddr);
+        }
+  }
+  
+  // Run the program
+  function_t f=(function_t)elf->e_entry;
   
   print("Allocating stack\n");
   enum {STACKSIZE=32*1024};
   uint64_t *stack=new uint64_t[STACKSIZE];
   
-  print("Running demo {\n");
+  print("Running linux program {\n");
   
   int ret=start_function_with_stack(f,&stack[STACKSIZE-1]);
   
   print("}\n");
+  
   print((int)ret);
   print(" was the return value.\n");
   println();
 
   syscall_finish();
+  return 0; // it worked!
 }
 
 

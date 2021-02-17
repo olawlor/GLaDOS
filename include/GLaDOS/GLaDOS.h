@@ -83,7 +83,7 @@ inline void cli(void) { __asm__("cli"); }
 inline void sti(void) { __asm__("sti"); }
 
 /// Load and start executing a linux program
-extern void run_linux(const char *program_name);
+extern int run_linux(const char *program_name);
 
 /// Read and execute user commands 
 extern void handle_commands(void);

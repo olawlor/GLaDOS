@@ -202,9 +202,9 @@ public:
     // Read file data (block by block)
     bool get(ByteBuffer &buf,int index) const;
     
+    enum {BLOCK_SIZE=4096}; // I/O buffer size
 private:
     EFI_FILE_PROTOCOL* file; // opened file (EFI)
-    enum {BLOCK_SIZE=4096}; // I/O buffer size
     mutable Byte block[BLOCK_SIZE]; // I/O buffer
 };
 

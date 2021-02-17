@@ -167,6 +167,7 @@ FileDataStringSource FileContents(const StringSource &filename)
 bool FileDataStringSource::get(ByteBuffer &buf,int index) const
 {
     UINTN size=BLOCK_SIZE;
+    UEFI_CHECK(file->SetPosition(file,BLOCK_SIZE*index));
     UEFI_CHECK(file->Read(file,&size,block));
     print(size); println(" bytes read from file in file.get");
     if (size==0) return false; // no file data

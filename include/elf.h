@@ -19,13 +19,12 @@
 #ifndef _ELF_H
 #define	_ELF_H 1
 
-#include <features.h>
+// #include <features.h>
 
-__BEGIN_DECLS
 
 /* Standard ELF types.  */
 
-#include <stdint.h>
+// #include <stdint.h>
 
 /* Type for a 16-bit quantity.  */
 typedef uint16_t Elf32_Half;
@@ -1109,7 +1108,7 @@ typedef struct
     } a_un;
 } Elf64_auxv_t;
 
-#include <bits/auxv.h>
+// #include <bits/auxv.h>
 /* Note section contents.  Each entry in the note section begins with
    a header of a fixed form.  */
 
@@ -1775,6 +1774,5 @@ typedef struct
 #define SHT_X86_64_UNWIND	0x70000001 /* Unwind information.  */
 
 
-__END_DECLS
 
 #endif	/* elf.h */
