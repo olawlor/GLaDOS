@@ -7,6 +7,7 @@ GNU_EFI_CFLAGS=
 # Warnings and optimization flags
 WARNINGS=-Wall 
 OPTS=-O1
+#OPTS=-g 
 
 # These are the clang compiler flags to build an EFI executable
 #   From https://dvdhrm.github.io/2019/01/31/goodbye-gnuefi/
@@ -30,7 +31,7 @@ CFLAGS=$(WARNINGS) $(OPTS)	$(EFI_CFLAGS) -I.  -Iinclude
 LDFLAGS=$(OPTS) $(EFI_LDFLAGS)
 
 # Compile these object files, link the kernel, copy to drive image:
-OBJ=boot.o io.o util.o asm_util.o
+OBJ=boot.o io.o util.o run_linux.o asm_util.o
 KERNEL=glados.efi
 DRIVE=my_efi.hdd
 
@@ -41,16 +42,10 @@ QFLAGS=-L . -drive format=raw,file=$(DRIVE) -m 512
 all: run
 
 # Here's how we compile each source file:
-boot.o: boot.cpp
+%.o: %.cpp
 	clang $< $(CFLAGS)  -c 
 
-io.o: io.cpp
-	clang $< $(CFLAGS)  -c 
-
-util.o: util.cpp
-	clang $< $(CFLAGS)  -c 
-
-asm_util.o: asm_util.s
+%.o: %.s
 	nasm -f win64 $< -o $@
 
 # This is the main linker line, to build the actual .efi kernel file:
@@ -67,7 +62,7 @@ debug: $(DRIVE)
 
 # Disassemble the kernel
 dis: $(KERNEL)
-	objdump --adjust-vma=0xFFFFFFFEDE7F8000 -M intel -drC $(KERNEL) > dis
+	objdump --adjust-vma=0xFFFFFFFEDE7F7000 -M intel -drC $(KERNEL) > dis
 
 dis_nasm: $(KERNEL)
 	ndisasm -b 64 $(KERNEL) > dis_nasm

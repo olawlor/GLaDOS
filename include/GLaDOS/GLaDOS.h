@@ -51,7 +51,8 @@ extern void clear_screen(void);
 /// Print stuff to the console
 extern void print(const char *str);
 extern void print(const StringSource &str);
-extern void println(const StringSource &str=StringSource()); 
+extern void println(void);
+extern void println(const StringSource &str); 
 extern void print(int value); 
 extern void print(int64_t value);
 extern void print(uint64_t value);
@@ -80,6 +81,9 @@ extern bool pause(void);
 inline void cli(void) { __asm__("cli"); }
 /// Turn on interrupts
 inline void sti(void) { __asm__("sti"); }
+
+/// Load and start executing a linux program
+extern void run_linux(const char *program_name);
 
 /// Read and execute user commands 
 extern void handle_commands(void);

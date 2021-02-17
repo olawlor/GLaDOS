@@ -12,35 +12,6 @@
 EFI_SYSTEM_TABLE *ST=0;
 
 
-// From asm_util.s:
-extern "C" uint64_t syscall_setup(); 
-extern "C" void syscall_finish(); 
-extern "C" uint64_t handle_syscall(uint64_t syscallNumber,uint64_t *args)
-{
-    print("  syscall ");
-    print((int)syscallNumber);
-    if (syscallNumber==1) {
-        int fd=args[0];
-        void *ptr=(void *)args[1];
-        uint64_t len=args[2];
-        print("write(");
-        print(fd);
-        println(")");
-        if (fd==1) // stdout
-            print(ByteBuffer(ptr,len));
-        else
-            panic("Unknown fd",fd);
-    }
-    if (syscallNumber==60) {
-        print("exit(");
-        int exitcode=args[0];
-        print(exitcode);
-        println(")");
-    }
-    return 0;
-}
-
-
 extern "C"
 EFI_STATUS
 EFIAPI
@@ -58,35 +29,7 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
   // Read and write chars
   println("Hello.  This is GLaDOS, for science.");
   print_hex((uint64_t)(void *)efi_main);
-  print("=efi_main ");
-  
-  // Program p("APPS/PROG"); // <- aspirational interface
-  
-  // Set up syscalls  
-  print("syscalls ");
-  syscall_setup();
-  
-  // Run a program
-  FileDataStringSource exe=FileContents("APPS/PROG");
-  Byte *code=(Byte *)0x400000;
-  ByteBuffer buf; int strIndex=0;
-  while (exe.get(buf,strIndex++)) {
-     for (char c:buf) {
-        *code++ = c;
-     }
-  }
-  // call start
-  typedef long (*function_t)(void);
-  function_t f=(function_t)0x401000;
-  println("Running demo {");
-  long ret=f();
-  println("}");
-  print((int)ret);
-  println(" was the return value.");
-
-  syscall_finish();
-  
-  
+  print("=efi_main\n");
   
   handle_commands();
 

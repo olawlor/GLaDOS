@@ -21,6 +21,9 @@ void print(const StringSource &str) {
 void println(const StringSource &str) {
   print(str+"\n");
 }
+void println(void) {
+  print("\n");
+}
 
 /// Print a normal C string (saves about 2K doing this specialization)
 void print(const char *str) {
@@ -74,9 +77,11 @@ void print_long_internal(int64_t value,long base=10,long min_length=1,char separ
 
 void print(int64_t value) {
   print_long_internal(value,10);
+  /*
   print("(");
   print_long_internal(value,16,1,0);
   print(") ");
+  */
 }
 void print(int value) {
   print((int64_t)value);
@@ -184,6 +189,11 @@ void handle_commands(void)
     
     if (cmd==keycode_esc) { // escape key: just clears screen
       clear_screen();
+    }
+    else if (cmd=='l') { // run a linux program
+      println("Running program...");
+      run_linux("APPS/prog");
+      println("Back from program.  Anything broken?");
     }
     else if (cmd=='i') { // stop handling interrupts
       println("Interrupts going off...");
