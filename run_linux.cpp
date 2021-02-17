@@ -14,12 +14,19 @@ extern "C" void return_to_main_stack(void);
 extern "C" uint64_t syscall_setup(); 
 extern "C" void syscall_finish(); 
 
+// Syscall numbers from https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md
+enum {
+    syscallWrite=1,
+    syscallOpen=2,
+    syscallArch_prctl=158,
+    syscallExit=60
+};
 
 extern "C" uint64_t handle_syscall(uint64_t syscallNumber,uint64_t *args)
 {
     print("  syscall ");
     print((int)syscallNumber);
-    if (syscallNumber==1) {
+    if (syscallNumber==syscallWrite) {
         int fd=args[0];
         void *ptr=(void *)args[1];
         uint64_t len=args[2];
@@ -31,7 +38,20 @@ extern "C" uint64_t handle_syscall(uint64_t syscallNumber,uint64_t *args)
         else
             panic("Unknown fd",fd);
     }
-    else if (syscallNumber==60) {
+    else if (syscallNumber==syscallOpen) {
+        const char *pathname=(const char *)args[0];
+        uint64_t flags=args[1];
+        uint64_t mode=args[2];
+        print("open(");
+        print(pathname);
+        print(",");
+        print(flags);
+        print(",");
+        print(mode);
+        println(")");
+        return -1; // return error (no open yet!)
+    }
+    else if (syscallNumber==syscallExit) {
         print("exit(");
         int exitcode=args[0];
         print(exitcode);
@@ -71,15 +91,33 @@ void map_file_to_memory(FileDataStringSource &exe,
     
 }
 
+// Set up a new stack for a new Linux program.
+//  Returns the new stack pointer the program can use.
+//  Initialized according to the Linux SysV ABI here:
+//    https://uclibc.org/docs/psABI-x86_64.pdf  
+//  (See Section 3.4, Figure 3.9)
+uint64_t *setup_stack(const char *program_name,uint64_t *start,uint64_t STACKSIZE)
+{
+    // Stack grows to lower addresses, so start at end of buffer.
+    uint64_t *rsp=&start[STACKSIZE];
+    
+    *(--rsp)=0; // "push" null auxvector entry
+    // auxvector entries go here: see https://github.com/torvalds/linux/blob/master/include/uapi/linux/auxvec.h
+    //  Both glibc and diet libc really seem to need these or they die at startup...
+    
+    *(--rsp)=0; // "push" null after environment variables
+    // environment variables go here
+    *(--rsp)=0; // last argument 
+    *(--rsp)=(uint64_t)program_name; // program arguments go here
+    *(--rsp)=1; // number of arguments, including program name itself
+    return rsp; //<- from the ABI, QWORD[rsp] == argc
+}
+
 
 // Load and execute a Linux program from this file:
 int run_linux(const char *program_name)
 {
   // Program p("APPS/PROG"); // <- aspirational interface
-  
-  // Set up syscalls  
-  print("syscalls\n");
-  syscall_setup();
   
   // Load a program's ELF header
   FileDataStringSource exeELF=FileContents(program_name);
@@ -116,16 +154,20 @@ int run_linux(const char *program_name)
         }
   }
   
+  // Set up syscalls  
+  print("syscalls\n");
+  syscall_setup();
+  
   // Run the program
   function_t f=(function_t)elf->e_entry;
   
   print("Allocating stack\n");
   enum {STACKSIZE=32*1024};
   uint64_t *stack=new uint64_t[STACKSIZE];
-  
+  uint64_t *new_rsp=setup_stack(program_name,stack,STACKSIZE);
   print("Running linux program {\n");
   
-  int ret=start_function_with_stack(f,&stack[STACKSIZE-1]);
+  int ret=start_function_with_stack(f,new_rsp);
   
   print("}\n");
   
@@ -134,6 +176,9 @@ int run_linux(const char *program_name)
   println();
 
   syscall_finish();
+  
+  delete[] stack;
+  
   return 0; // it worked!
 }
 

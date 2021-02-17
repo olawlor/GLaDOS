@@ -196,6 +196,9 @@ void handle_commands(void)
       run_linux("APPS/prog");
       println("Back from program.  Anything broken?");
     }
+    else if (cmd=='L') { // run a linux C program
+      run_linux("APPS/prog_c");
+    }
     else if (cmd=='i') { // stop handling interrupts
       println("Interrupts going off...");
       cli();

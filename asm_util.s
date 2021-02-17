@@ -23,9 +23,9 @@ start_function_with_stack:
     mov rax,kernel_main_stack
     mov QWORD[rax],rsp
         mov rsp,rdx ; load up new stack
-
-        sub rsp,15 ; round up stack to multiple of 16 bytes
-        and rsp,~0xf
+        
+        mov rdx,atexit_empty ; ABI wants a function pointer
+        mov rbp,0 ; ABI says this should be zero at the deepest frame
         
         call rcx ; call f using new stack
         
@@ -47,6 +47,10 @@ return_to_main_stack:
     pop rsi
     pop rdi
     mov rax,3
+    ret
+
+; This is a placeholder, the ABI wants an atexit function here.
+atexit_empty:
     ret
 
 ; -------------- syscall handling ---------

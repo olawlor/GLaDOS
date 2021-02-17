@@ -68,14 +68,23 @@ dis_nasm: $(KERNEL)
 	ndisasm -b 64 $(KERNEL) > dis_nasm
 
 
-# Userspace program, for testing
-program: prog.s
+# Userspace programs, for testing
+PROGRAMS=APPS/prog APPS/prog_c
+
+# Assembly, making bare linux syscalls
+APPS/prog: prog.s
 	nasm -f elf64 $< -o prog.o
-	ld prog.o -o APPS/prog
+	ld prog.o -o $@
+
+# Compiled program using the smaller "diet libc":
+#   (Currently need to comment out stackgap in config file)
+APPS/prog_c: prog_c.c
+	/opt/diet/bin/diet gcc -no-pie $< -static -o $@
+
 
 # This copies the kernel to a FAT16 filesystem on a floppy disk image.
 #  Uses mformat (mtools) to avoid needing root access.
-$(DRIVE):  $(KERNEL) program
+$(DRIVE):  $(KERNEL) $(PROGRAMS)
 	#dd if=/dev/zero of="$@" bs=1k count=1440
 	mformat -i "$@" -f 1440 ::
 	mmd -i "$@" ::/EFI
