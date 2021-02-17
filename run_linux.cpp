@@ -51,8 +51,6 @@ void map_file_to_memory(FileDataStringSource &exe,
 {
     const uint64_t BLOCK=FileDataStringSource::BLOCK_SIZE;
     int index=file_offset/BLOCK;
-    if (file_offset%BLOCK !=0)
-        panic("Bad ELF file offset ",file_offset);
     int end_index=(size+BLOCK-1)/BLOCK;
     
     print("Filling program address ");
