@@ -3,6 +3,28 @@
 bits 64
 section .text
 
+; ------------ x86-64 utilities ------
+; Interface: store interrupt descriptor table (IDT) to this parameter
+;   rcx: points to IDT data structure
+global sidt
+sidt:
+    sidt [rcx]
+    ret
+
+global sgdt
+sgdt:
+    sgdt [rcx]
+    ret
+
+global lidt
+lidt:
+    lidt [rcx]
+    ret
+
+global lgdt
+lgdt:
+    lgdt [rcx]
+    ret
 
 ; ---------- stack handling ---------
 
@@ -145,6 +167,10 @@ syscall_entry:
 
 
 section .data
+;  CAUTION: the UEFI dynamic loader relocates this file,
+;   so addresses DO NOT WORK unless loaded with this exact format:
+;    mov r*x, *symbolname* 
+;  In particular, accesses like [*symbolname*] won't get relocated!
 
 ; Saved pointer to the UEFI-allocated main stack (efi_main)
 kernel_main_stack:

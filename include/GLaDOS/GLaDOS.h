@@ -18,9 +18,11 @@ typedef long long int64_t;
 typedef unsigned long long uint64_t;
 #endif
 
-// Fatal error in kernel: prints the error message and hangs.
+/// Fatal error in kernel: prints the error message and hangs.
 void panic(const char *why,uint64_t number=0);
 
+/// Halts forever.  (For example, after a panic.)
+void hang(void);
 
 extern "C" {
   // This is the Intel EFI headers.
@@ -84,6 +86,12 @@ inline void sti(void) { __asm__("sti"); }
 
 /// Load and start executing a linux program
 extern int run_linux(const char *program_name);
+
+/// Explore the CPU-OS interface data structures
+extern void print_idt(void);
+extern void test_idt(void);
+extern void print_gdt(void);
+
 
 /// Read and execute user commands 
 extern void handle_commands(void);

@@ -185,7 +185,6 @@ void handle_commands(void)
   while(1) {
     print("> ");
     int cmd=read_char();
-    print(cmd); 
     println();
     
     if (cmd==keycode_esc) { // escape key: just clears screen
@@ -199,13 +198,14 @@ void handle_commands(void)
     else if (cmd=='L') { // run a linux C program
       run_linux("APPS/prog_c");
     }
-    else if (cmd=='i') { // stop handling interrupts
-      println("Interrupts going off...");
-      cli();
+    else if (cmd=='i') { // dump the interrupt descriptor table (IDT)
+      print_idt();
     }
-    else if (cmd=='I') { // resume handling interrupts
-      sti();
-      println("Interrupts back on");
+    else if (cmd=='h') { // hook an interrupt
+      test_idt();
+    }
+    else if (cmd=='g') { // dump the global descriptor table (GDT)
+      print_gdt();
     }
     
     else if (cmd=='v') { // VGA memory
@@ -235,49 +235,9 @@ void handle_commands(void)
         println();
         delete p;
     }
-    else if (cmd=='g') { // "good" file read
+    else if (cmd=='f') { // file read
         println("File contents: "+FileContents("APPS/DATA.DAT"));
     }
-    else if (cmd=='f') { // read a file 
-      // See: https://stackoverflow.com/questions/32324109/can-i-write-on-my-local-filesystem-using-efi
-      
-      println("Getting file services:");
-      EFI_GUID guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
-      
-      EFI_HANDLE* handles = 0;   
-      UINTN handleCount = 0;
-      UEFI_CHECK(ST->BootServices->LocateHandleBuffer(
-        ByProtocol, &guid, NULL, &handleCount, &handles));
-
-      print(handleCount);
-      
-      EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs = 0;
-      UEFI_CHECK(ST->BootServices->HandleProtocol(
-        handles[0],&guid,(void **)&fs));
-      
-      
-      println("Opening root volume:");
-      EFI_FILE_PROTOCOL* root = 0;
-      UEFI_CHECK(fs->OpenVolume(fs, &root));
-      
-      EFI_FILE_PROTOCOL* file = 0;
-      UEFI_CHECK(root->Open(root,&file,
-        (CHAR16 *)L"APPS\\DATA.DAT", EFI_FILE_MODE_READ, 
-        EFI_FILE_READ_ONLY | EFI_FILE_HIDDEN | EFI_FILE_SYSTEM));
-      
-      char buf[1000];
-      UINTN size=sizeof(buf);
-      UEFI_CHECK(file->Read(file,&size,buf));
-      
-      println("Read data:");
-      print(size);
-      println(" bytes of data");
-      println(buf);
-      println("That's the file data, closing the file.");
-      
-      UEFI_CHECK(ST->BootServices->FreePool(handles));
-    }
-    
     else if (cmd=='m') { // dump memory map
       println("Fetching memory map");
       enum {n=128};
