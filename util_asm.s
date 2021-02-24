@@ -26,6 +26,16 @@ lgdt:
     lgdt [rcx]
     ret
 
+global pause_CPU
+pause_CPU:
+    pause
+    ret
+
+global read_CR3
+read_CR3:
+    mov rax,cr3
+    ret
+
 ; ---------- stack handling ---------
 
 ; start_function_with_stack
@@ -98,7 +108,7 @@ syscall_setup:
     
     ; GDT magic: Set the segment numbers for the kernel
     mov rax,0 ; segment numbers get stored here
-    mov rax,0x00100010; <-SUPERHACK works with UEFI GDT, data segment is +8 from here
+    mov rax,0x00380038; we use UEFI's code segment 0x38, and we set up data at 0x40
     shl rax,32 ; code segment starts at bit 32 of STAR
     mov rcx, 0xC0000081 ; STAR: syscall segments for code and stack
     wrmsr 
@@ -107,7 +117,7 @@ syscall_setup:
     mov rcx,0xC0000084 ; FMASK: mask flag bits for SYSCALL 
     ; FIXME: mask the trace flag?
     
-    cli ; Avoid inconsistent failures by turning off interrupts?
+    ;cli ; Avoid inconsistent failures by turning off interrupts?
     
     ret
 
@@ -122,10 +132,10 @@ syscall_finish:
     ;rex64 retf
     ;restore_uefi:
     
-    mov ax,0x30
-    mov ss,ax
+    ;mov ax,0x30 ; <- uefi's stack segment
+    ;mov ss,ax
     
-    sti ; restore interrupts
+    ;sti ; restore interrupts
     
     ret
 

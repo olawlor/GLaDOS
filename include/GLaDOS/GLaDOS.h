@@ -84,6 +84,13 @@ inline void cli(void) { __asm__("cli"); }
 /// Turn on interrupts
 inline void sti(void) { __asm__("sti"); }
 
+/// Reduce idle energy: be kind to the CPU in busy wait
+inline void pause_CPU(void) { __asm__("pause"); }
+
+/// Called at startup
+extern void setup_GDT(void);
+extern void setup_IDT(void);
+
 /// Load and start executing a linux program
 extern int run_linux(const char *program_name);
 
@@ -91,6 +98,10 @@ extern int run_linux(const char *program_name);
 extern void print_idt(void);
 extern void test_idt(void);
 extern void print_gdt(void);
+extern void test_gdt(void);
+extern void print_pagetables(void);
+extern void test_pagetables(void);
+
 
 
 /// Read and execute user commands 

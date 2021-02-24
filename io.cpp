@@ -108,6 +108,7 @@ int read_char(void) {
   EFI_STATUS status;
   EFI_INPUT_KEY k;
   do {
+    pause_CPU();
     status = ST->ConIn->ReadKeyStroke(ST->ConIn, &k);
   } while (status==EFI_NOT_READY);
   if (k.UnicodeChar) {
@@ -206,6 +207,15 @@ void handle_commands(void)
     }
     else if (cmd=='g') { // dump the global descriptor table (GDT)
       print_gdt();
+    }
+    else if (cmd=='G') { // play with the global descriptor table (GDT)
+      test_gdt();
+    }
+    else if (cmd=='p') { // print info about the page tables
+      print_pagetables();
+    }
+    else if (cmd=='P') { // test out the page tables
+      test_pagetables();
     }
     
     else if (cmd=='v') { // VGA memory

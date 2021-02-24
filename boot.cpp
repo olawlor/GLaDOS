@@ -29,7 +29,11 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
   // Read and write chars
   println("Hello.  This is GLaDOS, for science.");
   print_hex((uint64_t)(void *)efi_main);
-  print("=efi_main\n");
+  print("=efi_main ");
+
+  setup_GDT();
+  setup_IDT();
+  print("\nBooted OK!\n");
   
   handle_commands();
 
