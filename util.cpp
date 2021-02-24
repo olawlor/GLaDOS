@@ -392,21 +392,129 @@ void test_gdt(void)
 
 
 /******* Page Tables *********/
+enum {PAGE_BITS=12}; // bits per page address
+// These are the bits in a normal x86-64 linear address
+struct pointer_bits_PML4 {
+	uint64_t within_page:12; // byte offset inside the 4KB page
+	uint64_t idx1:9; // index into PML1
+	uint64_t idx2:9; // index into PML2
+	uint64_t idx3:9; // index into PML3
+	uint64_t idx4:9; // index into PML4
+	uint64_t canonical:16; // must all be the same as high bit of idx4
+};
+// This union lets you extract the bits from a pointer
+union pointer_to_bits_PML4 {
+    void *ptr;
+    pointer_bits_PML4 bits;
+};
 
-extern "C" void * read_CR3(void); //< in util_asm.s, reads cr3 register
+enum {PML_LEN=1<<9}; // pagemap length (=4KB/sizeof(pagemap_entry))
+struct pagemap_entry {
+	// 12 bits of flags:
+	uint64_t present:1; // 1 if present, 0 if you want #PF on access
+	uint64_t RW:1; // 1 if writeable, 0 for read only
+	uint64_t US: 1; // 1 if accessible to user, 0 for system only
+	uint64_t PWT:1; // writethrough cache
+	uint64_t PCD:1; // page cache disable
+	uint64_t A:1; // accessed (set by CPU)
+	uint64_t D:1; // dirty (set by CPU on the last level)
+	uint64_t PAT:1; // 0 for normal, 1 for special page (huge pages on PML2 & 3)
+	uint64_t G:1; // 1 if "global", accessible everywhere
+	uint64_t ign:3; // OS can use this, CPU ignores them
 
+	uint64_t address:36; // physical address of next level, left shifted by 12 bits
+
+	uint64_t reserved:15; // high bits mostly reserved
+	uint64_t XD:1; // "execute disable": do not run code here if 1.
+    
+    // Get the next level entry
+    pagemap_entry *next_level(void) const {
+        if (!present) return 0;
+        uint64_t addr=address<<PAGE_BITS;
+        return (pagemap_entry *)addr;
+    }
+    
+    // Print one page-map-level entry
+    void print_entry(void)
+    {
+        print(" => ");
+        print(address); 
+           print("000"); //<- add back the 12 low bits
+        print(": ");
+        if (present) {
+            if (RW) print("RW ");
+            if (US) print("US ");
+            if (PWT) print("PWT ");
+            if (PCD) print("PCD ");
+            if (A) print("A ");
+            if (D) print("D ");
+            if (PAT) print("PAT ");
+            if (G) print("S ");
+            if (XD) print("XD ");
+        }
+        else print("not present");
+        print("\n");
+    }
+};
+
+extern "C" pagemap_entry *read_CR3(void); //< in util_asm.s, reads cr3 register
+
+// Pretty-print this index into our page-map level,
+//   and return that entry.
+pagemap_entry &print_index(pagemap_entry *pml,const char *level,int index) {
+    print("  ");
+    print(level);
+    print(" = ");
+    print((uint64_t)pml);
+    print("["); print(index); print("]");
+    pagemap_entry &entry=pml[index];
+    entry.print_entry();
+    return entry;
+}
+
+// Print the pagetable entries for this pointer:
+void walk_pagetable(void *ptr)
+{
+    print("Walking pagetable for ");
+    print((uint64_t)ptr);
+    print("\n");
+    pointer_bits_PML4 bits=*reinterpret_cast<pointer_bits_PML4 *>(&ptr);
+
+    // Start at CR3, and walk down PML4, 3, 2, 1
+    pagemap_entry *pml4=read_CR3();
+    pagemap_entry &pml4e=print_index(pml4,"PML4",bits.idx4);
+    
+    pagemap_entry *pml3=pml4e.next_level();
+    if (pml3==0) { print("  => not present (#PF)\n"); return; }
+    pagemap_entry &pml3e=print_index(pml3,"PML3",bits.idx3);
+    if (pml3e.PAT) { print("   => a 1GB(!) page\n"); return; }
+    
+    pagemap_entry *pml2=pml3e.next_level();
+    if (pml2==0) { print("  => not present (#PF)\n"); return; }
+    pagemap_entry &pml2e=print_index(pml2,"PML2",bits.idx2);
+    if (pml2e.PAT) { print("   => a 2MB page\n"); return; }
+    
+    pagemap_entry *pml1=pml2e.next_level();
+    if (pml1==0) { print("  => not present (#PF)\n"); return; }
+    pagemap_entry &pml1e=print_index(pml1,"PML1",bits.idx1);
+    print("   => a normal page\n");
+}
+
+int random_global=0;
 void print_pagetables(void)
 {
-    print("Reading CR3\n");
-    void *cr3=read_CR3();
-    print((uint64_t)cr3);
+    // Examine the pagetable entries for one address
+    walk_pagetable(&random_global);
+    
     print("\n");
 }
 
 void test_pagetables(void)
 {
-    print("Trying to access a crazy address\n");
+    print("Check pagetable for this crazy address:\n");
     int *ptr=(int *)0xbadc0def00; // "bad code foo"
+    walk_pagetable(ptr);
+    print("Trying to access a crazy address\n");
     print(*ptr);
     print("Trying to write data there\n");
     *ptr=3;
