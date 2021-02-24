@@ -494,19 +494,12 @@ void walk_pagetable(void *ptr)
     pagemap_entry *pml2=pml3e.next_level();
     if (pml2==0) { print("  => not present (#PF)\n"); return; }
     pagemap_entry &pml2e=print_index(pml2,"PML2",bits.idx2);
-    if (pml2e.PAT) { 
-        print("   => a 2MB page, physical address "); 
-        print((uint64_t)pml2e.next_level());
-        print("\n");
-        return; 
-    }
+    if (pml2e.PAT) { print("   => a 2MB page\n"); return; }
     
     pagemap_entry *pml1=pml2e.next_level();
     if (pml1==0) { print("  => not present (#PF)\n"); return; }
     pagemap_entry &pml1e=print_index(pml1,"PML1",bits.idx1);
-    print("   => a normal page, physical address ");
-    print((uint64_t)pml1e.next_level());
-    print("\n");
+    print("   => a normal page\n");
 }
 
 int random_global=0;
