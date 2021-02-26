@@ -393,6 +393,8 @@ void test_gdt(void)
 
 /******* Page Tables *********/
 enum {PAGE_BITS=12}; // bits per page address
+enum {PML_BITS=9}; // bits per pagemap level
+
 // These are the bits in a normal x86-64 linear address
 struct pointer_bits_PML4 {
 	uint64_t within_page:12; // byte offset inside the 4KB page
@@ -407,8 +409,13 @@ union pointer_to_bits_PML4 {
     void *ptr;
     pointer_bits_PML4 bits;
 };
+inline pointer_bits_PML4 bits_from_pointer(void *ptr) {
+    return *reinterpret_cast<pointer_bits_PML4 *>(&ptr);
+}
 
-enum {PML_LEN=1<<9}; // pagemap length (=4KB/sizeof(pagemap_entry))
+enum {pagemap_length=1<<9}; // pagemap length (=4KB/sizeof(pagemap_entry))
+
+/// This is one entry in a pagemap.  The format is defined by Intel.
 struct pagemap_entry {
 	// 12 bits of flags:
 	uint64_t present:1; // 1 if present, 0 if you want #PF on access
@@ -420,14 +427,39 @@ struct pagemap_entry {
 	uint64_t D:1; // dirty (set by CPU on the last level)
 	uint64_t PAT:1; // 0 for normal, 1 for special page (huge pages on PML2 & 3)
 	uint64_t G:1; // 1 if "global", accessible everywhere
-	uint64_t ign:3; // OS can use this, CPU ignores them
+	uint64_t ignored:3; // OS can use this, CPU ignores them
 
 	uint64_t address:36; // physical address of next level, left shifted by 12 bits
 
 	uint64_t reserved:15; // high bits mostly reserved
 	uint64_t XD:1; // "execute disable": do not run code here if 1.
     
-    // Get the next level entry
+    
+    // Empty this entry:
+    void empty(void) {
+        present=0;
+        RW=0;
+        US=0;
+        PWT=0;
+        PCD=0;
+        A=0;
+        D=0;
+        PAT=0;
+        G=0;
+        ignored=0;
+        address=0;
+        reserved=0;
+        XD=0;
+    }
+    
+    // Set the address of this entry.  
+    //  The pointer MUST be PAGE_BITS aligned.
+    void set_address(void *ptr) {
+        uint64_t addr=(uint64_t)ptr;
+        address=addr>>PAGE_BITS;
+    }
+    
+    // Get the next level entry, or 0 if we're invalid
     pagemap_entry *next_level(void) const {
         if (!present) return 0;
         uint64_t addr=address<<PAGE_BITS;
@@ -450,6 +482,8 @@ struct pagemap_entry {
             if (D) print("D ");
             if (PAT) print("PAT ");
             if (G) print("S ");
+            if (ignored) { print(" ign=");print(ignored); print(" "); }
+            if (reserved) { print(" reserved=");print(reserved); print(" "); }
             if (XD) print("XD ");
         }
         else print("not present");
@@ -457,7 +491,11 @@ struct pagemap_entry {
     }
 };
 
-extern "C" pagemap_entry *read_CR3(void); //< in util_asm.s, reads cr3 register
+// A pagetable is a pointer to the highest pagemap level (pml4 or pml5)
+typedef pagemap_entry  pagetable_t;
+
+extern "C" pagetable_t *read_pagetable(void); //< in util_asm.s, reads cr3 register
+extern "C" void write_pagetable(pagetable_t *new_pagetable); //< in util_asm.s, writes cr3 register
 
 // Pretty-print this index into our page-map level,
 //   and return that entry.
@@ -472,46 +510,191 @@ pagemap_entry &print_index(pagemap_entry *pml,const char *level,int index) {
     return entry;
 }
 
-// Print the pagetable entries for this pointer:
-void walk_pagetable(void *ptr)
+// Print the pagetable entries for this pointer,
+//  and return the last level.
+pagemap_entry &walk_pagetable(void *ptr,pagetable_t *pagetable=read_pagetable())
 {
     print("Walking pagetable for ");
     print((uint64_t)ptr);
     print("\n");
-    pointer_bits_PML4 bits=*reinterpret_cast<pointer_bits_PML4 *>(&ptr);
+    pointer_bits_PML4 bits=bits_from_pointer(ptr);
 
-    // Start at CR3, and walk down PML4, 3, 2, 1
-    pagemap_entry *pml4=read_CR3();
-    if (pml4==0) { print("  => not present (#PF)\n"); return; }
+    pagemap_entry *pml4=pagetable;
+    
+    // Walk down the pagemap levels: 4, 3, 2, 1
     pagemap_entry &pml4e=print_index(pml4,"PML4",bits.idx4);
-    if (pml4e.PAT) { print("   => a 512GB(!) page\n"); return; }
+    if (pml4e.PAT) { print("   => a 512GB(!) page\n"); return pml4e; }
     
     pagemap_entry *pml3=pml4e.next_level();
-    if (pml3==0) { print("  => not present (#PF)\n"); return; }
+    if (pml3==0) { print("  => not present (#PF)\n"); return pml4e; }
     pagemap_entry &pml3e=print_index(pml3,"PML3",bits.idx3);
-    if (pml3e.PAT) { print("   => a 1GB(!) page\n"); return; }
+    if (pml3e.PAT) { print("   => a 1GB(!) page\n"); return pml3e; }
     
     pagemap_entry *pml2=pml3e.next_level();
-    if (pml2==0) { print("  => not present (#PF)\n"); return; }
+    if (pml2==0) { print("  => not present (#PF)\n"); return pml3e; }
     pagemap_entry &pml2e=print_index(pml2,"PML2",bits.idx2);
-    if (pml2e.PAT) { print("   => a 2MB page\n"); return; }
+    if (pml2e.PAT) { print("   => a 2MB page\n"); return pml2e; }
     
     pagemap_entry *pml1=pml2e.next_level();
-    if (pml1==0) { print("  => not present (#PF)\n"); return; }
+    if (pml1==0) { print("  => not present (#PF)\n"); return pml2e; }
     pagemap_entry &pml1e=print_index(pml1,"PML1",bits.idx1);
     print("   => a normal page\n");
+    return pml1e;
+}
+
+
+
+/// Print a human-readable summary of the in-use parts of this pagetable:
+void print_pagetable_summary(pagetable_t *pagetable) 
+{
+    pagemap_entry *pml4=pagetable;
+    pagemap_entry *pml3=pml4[0].next_level();
+    // Print a summary of UEFI's pagetable entries:
+    for (int idx=0;idx<pagemap_length;idx++)
+    {
+        if (pml4[idx].present) {
+            print("UEFI pml4 "); print(idx); 
+            pml4[idx].print_entry();
+        }
+        pagemap_entry &pml3e=pml3[idx];
+        if (pml3e.present && pml3e.A) {
+            print("UEFI pml3 "); print(idx); 
+            pml3e.print_entry();
+        }
+    }
 }
 
 int random_global=0;
 void print_pagetables(void)
 {
+    pagetable_t *pagetable=read_pagetable();
+    
     // Examine the pagetable entries for one address
-    walk_pagetable(&random_global);
+    walk_pagetable(&random_global,pagetable);
+    
+    // Print what's in use:
+    print_pagetable_summary(pagetable);
     
     print("\n");
 }
 
+/// Make pagetables with identity mapping, 
+///   where all of RAM is readable, writeable, and executable.
+/// Works for this many gigs of RAM (usually at least 4, to get I/O devices).
+///  Returns the new pagetable.
+pagemap_entry *make_identity_pagetable(int max_RAM_gigs=32)
+{
+    pagemap_entry *pml4=new pagemap_entry[pagemap_length]; //<- uses galloc, so it's 4KB-aligned
+    pagetable_t *pagetable=pml4;
+    
+    pagemap_entry *pml3=new pagemap_entry[pagemap_length];
+    
+    // Copy all the entry permissions from this:
+    pagemap_entry permissions;
+    permissions.present=1;
+    permissions.RW=1; // everything is writeable
+    permissions.US=1; // userspace too (insecure, good for demo though!)
+    
+    // Each level points down to the next:
+    pml4[0]=permissions;
+    pml4[0].set_address(pml3);
+    
+    // pml3 has a bunch of entries set.  This works out to
+    //   one pml3 entry per gig of ram (9+9+12=30 bits per entry)
+    if (max_RAM_gigs>pagemap_length) 
+        panic("Too much ram to fit in pml3!",max_RAM_gigs);
+    for (int idx3=0;idx3<max_RAM_gigs;idx3++)
+    {
+        pagemap_entry *pml2=new pagemap_entry[pagemap_length];
+        pml3[idx3]=permissions;
+        pml3[idx3].set_address(pml2);
+        
+        // PML2 is where all the action happens:
+        //   we map every index as present and read/writeable
+        for (int idx2=0;idx2<pagemap_length;idx2++)
+        {
+            pml2[idx2]=permissions;
+            
+            uint64_t physical_page=(idx3<<PML_BITS)+idx2;
+            void *physical_address=(void *)(physical_page<<(PML_BITS+PAGE_BITS));
+            pml2[idx2].set_address(physical_address);
+            
+            pml2[idx2].PAT=1; //<- use big 2MB pages
+        }
+    }
+    return pagetable;
+}
+
 void test_pagetables(void)
+{
+    print("Pagetable playground!\n");
+    pagetable_t *uefi_pagetable=read_pagetable();
+    
+    // The UEFI page tables start out non-writeable, thanks to this guy:
+    //   https://www.workofard.com/2016/05/memory-protection-in-uefi/
+    walk_pagetable(uefi_pagetable);
+    
+    // We really want to make the UEFI pagemaps be writeable:
+    pointer_bits_PML4 bits=bits_from_pointer(uefi_pagetable);
+    pagemap_entry *uefi_pml4=uefi_pagetable;
+    pagemap_entry *uefi_pml3=uefi_pml4[bits.idx4].next_level();
+    pagemap_entry *uefi_pml2=uefi_pml3[bits.idx3].next_level();
+    
+    // Set up our own pagetables with writeable memory:
+    pagetable_t *partytime = make_identity_pagetable();
+    
+    // Check how our new pagetable would access UEFI's:
+    walk_pagetable(uefi_pagetable,partytime);
+    
+    print("Briefly switching to partytime pagetable:\n");
+    write_pagetable(partytime);
+    
+    // Set (all) the writeable bits in UEFI's pages:
+    for (int idx2=0;idx2<pagemap_length;idx2++)
+    {
+        pagemap_entry &e=uefi_pml2[idx2];
+        if (e.present) {
+            if (!e.RW) {
+                print("  UEFI "); e.print_entry();
+                e.RW=1; 
+                e.print_entry();
+            }
+        }
+    }
+    write_pagetable(uefi_pagetable);
+    print("Back to the UEFI pagetable.\n");
+    
+    // Test out the newly read-write pagetable:
+    print("  original entry ");
+    uefi_pml2[3].print_entry();
+    
+    int *ptr=(int *)0x600000; //<- 6 megs up, a pointer!
+    print(*ptr);
+    print(" is at 6 megs up\n");
+    
+    print("  after access ");
+    uefi_pml2[3].print_entry();
+    
+    print("Writing to the pointer:\n");
+    *ptr=3;
+    print(*ptr);
+    print(" is at 6 megs up\n");
+    
+    print("  new dirty bit ");
+    uefi_pml2[3].print_entry();
+    
+    // Change the physical address of this memory (!)
+    print("  moving physical address ");
+    uefi_pml2[3].set_address((void *)0xF000000); 
+    
+    uefi_pml2[3].print_entry();
+    print("Moved the page address: ");
+    print(*ptr);
+    print(" is now at 6 megs up\n");
+    
+}
+
+void other_test(void)
 {
     print("Check pagetable for this crazy address:\n");
     int *ptr=(int *)0xbadc0def00; // "bad code foo"

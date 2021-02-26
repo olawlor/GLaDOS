@@ -31,9 +31,14 @@ pause_CPU:
     pause
     ret
 
-global read_CR3
-read_CR3:
+global read_pagetable
+read_pagetable:
     mov rax,cr3
+    ret
+
+global write_pagetable
+write_pagetable:
+    mov cr3,rcx
     ret
 
 ; ---------- stack handling ---------
