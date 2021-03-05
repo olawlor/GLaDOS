@@ -3,7 +3,14 @@
 bits 64
 section .text
 
-; ------------ x86-64 utilities ------
+
+; ------------ x86-64 math utilities
+global sqrtf
+sqrtf:
+    sqrtss xmm0,xmm0
+    ret
+
+; ------------ x86-64 supervisor utilities ------
 ; Interface: store interrupt descriptor table (IDT) to this parameter
 ;   rcx: points to IDT data structure
 global sidt

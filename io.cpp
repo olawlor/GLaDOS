@@ -205,11 +205,14 @@ void handle_commands(void)
     else if (cmd=='h') { // hook an interrupt
       test_idt();
     }
-    else if (cmd=='g') { // dump the global descriptor table (GDT)
+    else if (cmd=='d') { // dump gdt
       print_gdt();
     }
-    else if (cmd=='G') { // play with the global descriptor table (GDT)
-      test_gdt();
+    else if (cmd=='g') { // dump graphics info
+      print_graphics();
+    }
+    else if (cmd=='G') { // play with graphics
+      test_graphics();
     }
     else if (cmd=='p') { // print info about the page tables
       print_pagetables();

@@ -47,6 +47,9 @@ extern void check_error(UINT64 error,const char *function,int line);
 #include "utility/Vector.h"
 #include "utility/StringSource.h"
 
+/// Take the square root of this float (GLaDOS version, <math.h> not available here)
+extern "C" float sqrtf(float x);
+
 /// Erase the screen
 extern void clear_screen(void);
 
@@ -101,6 +104,8 @@ extern void print_gdt(void);
 extern void test_gdt(void);
 extern void print_pagetables(void);
 extern void test_pagetables(void);
+extern void print_graphics(void);
+extern void test_graphics(void);
 
 
 

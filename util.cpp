@@ -82,6 +82,11 @@ void atexit(void (*exit_function)(void))
     /* ignore for now, we don't even have shutdown yet */
 }
 
+extern "C" {
+    int _fltused=0; //<- clang adds a reference to this if you use any floats.
+}
+
+
 /*---------- x86-64 utilities -------------*/
 #pragma pack (1) //<- avoid padding this struct
 struct amd64_descriptor {
