@@ -571,6 +571,7 @@ void print_pagetables(void)
     
     // Examine the pagetable entries for one address
     walk_pagetable(&random_global,pagetable);
+    walk_pagetable(pagetable,pagetable);
     
     // Print what's in use:
     print_pagetable_summary(pagetable);
@@ -591,6 +592,7 @@ pagemap_entry *make_identity_pagetable(int max_RAM_gigs=32)
     
     // Copy all the entry permissions from this:
     pagemap_entry permissions;
+    permissions.empty();
     permissions.present=1;
     permissions.RW=1; // everything is writeable
     permissions.US=1; // userspace too (insecure, good for demo though!)
@@ -609,17 +611,25 @@ pagemap_entry *make_identity_pagetable(int max_RAM_gigs=32)
         pml3[idx3]=permissions;
         pml3[idx3].set_address(pml2);
         
-        // PML2 is where all the action happens:
+        // PML2 just points down to PML1
         //   we map every index as present and read/writeable
         for (int idx2=0;idx2<pagemap_length;idx2++)
         {
+            pagemap_entry *pml1=new pagemap_entry[pagemap_length];
             pml2[idx2]=permissions;
+            pml2[idx2].set_address(pml1);
             
-            uint64_t physical_page=(idx3<<PML_BITS)+idx2;
-            void *physical_address=(void *)(physical_page<<(PML_BITS+PAGE_BITS));
-            pml2[idx2].set_address(physical_address);
+            // PML1 is where all the action happens:
+            //   we map every index as present and read/writeable
+            for (int idx1=0;idx1<pagemap_length;idx1++)
+            {
+                pml1[idx1]=permissions;
+                
+                uint64_t physical_page=(((idx3<<PML_BITS)+idx2)<<PML_BITS)+idx1;
+                void *physical_address=(void *)(physical_page<<PAGE_BITS);
+                pml1[idx1].set_address(physical_address);
+            }
             
-            pml2[idx2].PAT=1; //<- use big 2MB pages
         }
     }
     return pagetable;
@@ -627,18 +637,20 @@ pagemap_entry *make_identity_pagetable(int max_RAM_gigs=32)
 
 void test_pagetables(void)
 {
+    pagetable_t *partytime=make_identity_pagetable(4);
+    print("Map in partytime pagetable\n");
+    write_pagetable(partytime);
+    
+}
+
+void old_test_pagetables(void)
+{
     print("Pagetable playground!\n");
     pagetable_t *uefi_pagetable=read_pagetable();
     
     // The UEFI page tables start out non-writeable, thanks to this guy:
     //   https://www.workofard.com/2016/05/memory-protection-in-uefi/
-    walk_pagetable(uefi_pagetable);
-    
-    // We really want to make the UEFI pagemaps be writeable:
-    pointer_bits_PML4 bits=bits_from_pointer(uefi_pagetable);
-    pagemap_entry *uefi_pml4=uefi_pagetable;
-    pagemap_entry *uefi_pml3=uefi_pml4[bits.idx4].next_level();
-    pagemap_entry *uefi_pml2=uefi_pml3[bits.idx3].next_level();
+    walk_pagetable(uefi_pagetable, uefi_pagetable);
     
     // Set up our own pagetables with writeable memory:
     pagetable_t *partytime = make_identity_pagetable();
@@ -646,8 +658,19 @@ void test_pagetables(void)
     // Check how our new pagetable would access UEFI's:
     walk_pagetable(uefi_pagetable,partytime);
     
-    print("Briefly switching to partytime pagetable:\n");
+    print("Switching to partytime pagetable:\n");
     write_pagetable(partytime);
+ }
+ 
+ 
+ void change_pagetables(void)
+ {
+    // We really want to make the UEFI pagemaps be writeable:
+    pagetable_t *uefi_pagetable=read_pagetable();
+    pointer_bits_PML4 bits=bits_from_pointer(uefi_pagetable);
+    pagemap_entry *uefi_pml4=uefi_pagetable;
+    pagemap_entry *uefi_pml3=uefi_pml4[bits.idx4].next_level();
+    pagemap_entry *uefi_pml2=uefi_pml3[bits.idx3].next_level();
     
     // Set (all) the writeable bits in UEFI's pages:
     for (int idx2=0;idx2<pagemap_length;idx2++)

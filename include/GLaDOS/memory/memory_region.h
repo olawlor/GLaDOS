@@ -25,7 +25,7 @@ enum {NUM_REGIONS=64 };
 // REGION_SHIFT is the number of bits in an allocated pointer
 //  before the region number starts.  
 // 2^REGION_SHIFT is the size, in bytes, of all the space available for a region
-enum { REGION_SHIFT=20 };
+enum { REGION_SHIFT=24 };
 
 
 // Extract the region number from a pointer
@@ -127,7 +127,7 @@ void *galloc_slowpath(uint64_t size)
 	//  FIXME: direct page table alloc here?  Multicore locking / buffer stealing here?
 	void *base=pointer_for_region(r);
 	uint64_t buffersize=size_for_region(r); // size of buffers to allocate
-	enum {n_bytes=1024*1024}; // allocate this many bytes per mmap call
+	enum {n_bytes=1<<REGION_SHIFT}; // allocate this many bytes per mmap call
 	
 	// Split the new space into buffers, and link into the free list.
 	//  Invariant: buffers in the free list are all zeroed
