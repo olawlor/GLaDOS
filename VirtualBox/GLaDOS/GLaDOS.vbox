@@ -6,7 +6,7 @@
 ** Use VBoxManage or the VirtualBox Manager GUI to make changes.
 -->
 <VirtualBox xmlns="http://www.virtualbox.org/" version="1.15-linux">
-  <Machine uuid="{ece15f39-5a87-40b8-b148-0e3c8dff5ffe}" name="GLaDOS" OSType="Other_64" snapshotFolder="Snapshots" lastStateChange="2021-03-05T06:31:45Z">
+  <Machine uuid="{ece15f39-5a87-40b8-b148-0e3c8dff5ffe}" name="GLaDOS" OSType="Other_64" snapshotFolder="Snapshots" lastStateChange="2021-03-05T19:48:22Z">
     <MediaRegistry>
       <HardDisks>
         <HardDisk uuid="{72ba5798-e293-4d65-bb83-9a69369ab3a7}" location="/home/olawlor/321/lecture/GLaDOS/VirtualBox/bootdrive.vmdk" format="VMDK" type="Normal"/>
@@ -14,7 +14,7 @@
     </MediaRegistry>
     <ExtraData>
       <ExtraDataItem name="GUI/LastCloseAction" value="PowerOff"/>
-      <ExtraDataItem name="GUI/LastNormalWindowPosition" value="1772,487,1024,812"/>
+      <ExtraDataItem name="GUI/LastNormalWindowPosition" value="2040,1172,1024,812"/>
     </ExtraData>
     <Hardware>
       <CPU>
@@ -46,7 +46,7 @@
       <AudioAdapter driver="Pulse" enabled="true" enabledIn="false"/>
       <Clipboard/>
       <GuestProperties>
-        <GuestProperty name="/VirtualBox/HostInfo/GUI/LanguageID" value="en_US" timestamp="1614919081284967000" flags=""/>
+        <GuestProperty name="/VirtualBox/HostInfo/GUI/LanguageID" value="en_US" timestamp="1614973702775063000" flags=""/>
       </GuestProperties>
     </Hardware>
     <StorageControllers>
