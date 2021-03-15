@@ -63,7 +63,9 @@ extern void print(int64_t value);
 extern void print(uint64_t value);
 extern void print_hex(uint64_t value,long digits=16,char separator=' ');
 
+#include "arch/PageTable.h"
 
+// galloc/gfree allocate/deallocate small chunks of memory:
 #include "memory/memory.h" // galloc/gfree
 
 

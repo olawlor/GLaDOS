@@ -52,17 +52,63 @@ struct WindowColors {
 };
 const WindowColors defaultColors={ 0x685556, 0xff0000 };
 
-struct Rect {
-    int minX,maxX;
-    int minY,maxY;
-    Rect(int minX_,int maxX_, int minY_,int maxY_)
-        {minX=minX_; maxX=maxX_; minY=minY_; maxY=maxY_;}
+/// A Span is a range of values, from lo to hi-1.
+///  It's used inside rect to avoid duplicate min/max and x/y code.
+struct Span {
+    int lo; // first element in the span
+    int hi; // last+1 element in the span
+    Span(int l,int h) {lo=l; hi=h;}
+    Span() { lo=hi=0; }
+    
+    /// Return the middle (rounded down) of the span
+    int middle(void) const { return (lo+hi)/2; }
+    
+    /// Intersect this span: return a Span containing only pixels in both spans.
+    Span intersect(const Span &other) const {
+        return Span(lo>other.lo?lo:other.lo,
+            hi<other.hi?hi:other.hi);
+    }
 };
+
+/// A Rect is a 2D block of pixels.
+struct Rect {
+    Span X;
+    Span Y;
+    
+    /// Empty rectangle
+    Rect() {}
+    
+    /// Make a rectangle from (minX,minY) to (maxX,maxY):
+    Rect(int minX,int maxX, int minY,int maxY)
+        :X(minX,maxX), 
+         Y(minY,maxY) 
+         {}
+    
+    /// Make a rectangle centered at (x,y) with radius r
+    Rect(int cenX,int cenY,int radius) 
+        :X(cenX-radius,cenX+radius),
+         Y(cenY-radius,cenY+radius)
+         {}
+    
+    /// Make a rectangle from these two Spans:
+    Rect(const Span &spanX,const Span &spanY)
+        :X(spanX), Y(spanY) {}
+    
+    /// Intersect these rectangles: return a Rectangle containing only pixels inside both.
+    Rect intersect(const Rect &r) const {
+        return Rect(X.intersect(r.X), Y.intersect(r.Y));
+    }
+};
+
+/// This macro loops over the pixels in a rectangle,
+///   making (x,y) for each pixel in the rectangle.
+#define for_xy_in_Rect(r) for (int y=r.Y.lo;y<r.Y.hi;y++) for (int x=r.X.lo;x<r.X.hi;x++)
+
 // Given a rect for a window, return the rect for the titlebar
 Rect windowToTitlebar(const Rect &w) 
 {
-    return Rect((w.minX+w.maxX)/2,w.maxX,
-        w.minY-32, w.minY);
+    return Rect(w.X.middle(),w.X.hi,
+        w.Y.lo-32, w.Y.lo);
 }
 
 
@@ -75,6 +121,7 @@ public:
         info=mode->Info;
         wid=info->HorizontalResolution;
         ht=info->VerticalResolution;
+        frame=Rect(0,wid,0,ht);
         framebuffer=(Pixel *)mode->FrameBufferBase;
     }
     
@@ -84,30 +131,31 @@ public:
     
     
     /// Draw a box at this cx,cy center, side sizes, and color.
-    void drawCenteredBox(int cx,int cy,int sidex,int sidey,const Pixel &color)
+    void drawCenteredBox(int cx,int cy,int size,const Pixel &color)
     {
-        for (int y=cy-sidey;y<cy+sidey;y++)
-        for (int x=cx-sidex;x<cx+sidex;x++)
-            at(x,y)=color;
+        Rect r(cx,cy,size);
+        Rect rf=r.intersect(frame);
+        for_xy_in_Rect(rf) at(x,y)=color;
     }
     
     /// Fill a rectangle with a solid color
     void fillRect(const Rect &r,const Pixel &color)
     {
-        for (int y=r.minY;y<r.maxY;y++)
-        for (int x=r.minX;x<r.maxX;x++)
-            at(x,y)=color;
+        Rect rf=r.intersect(frame);
+        for_xy_in_Rect(rf) at(x,y)=color;
     }
     
     /// Outline a rectangle
     void outlineRect(const Rect &r,int wide,const Pixel &color)
     {
-        for (int y=r.minY;y<r.maxY;y++)
-        for (int x=r.minX;x<r.maxX;x++)
-            if (y<r.minY+wide || y>=r.maxY-wide //<- fixme: two loops, for speed
-                ||x<r.minX+wide || x>=r.maxX-wide)
-                at(x,y)=color;
-        
+        // Top strip:
+        fillRect(Rect(r.X.lo,r.X.hi,r.Y.lo,r.Y.lo+wide),color);
+        // Left strip:
+        fillRect(Rect(r.X.lo,r.X.lo+wide,r.Y.lo+wide,r.Y.hi-wide),color);
+        // Right strip:
+        fillRect(Rect(r.X.hi-wide,r.X.hi,r.Y.lo+wide,r.Y.hi-wide),color);
+        // Bottom strip:
+        fillRect(Rect(r.X.lo,r.X.hi,r.Y.hi-wide,r.Y.hi),color);
     }
     
     /// Draw a circle at this cx,cy center, radius, and color.
@@ -121,13 +169,14 @@ public:
     /// Draw a blended circle at this cx,cy center, radius, and color.
     void drawBlendCircle(int cx,int cy,int radius,const Pixel &color)
     {
-        for (int y=-radius;y<+radius;y++)
-        for (int x=-radius;x<+radius;x++)
+        Rect r(cx,cy,radius);
+        Rect rf=r.intersect(frame);
+        for_xy_in_Rect(rf) 
         {
-            int r2=x*x+y*y;
+            int r2=(x-cx)*(x-cx)+(y-cy)*(y-cy);
             if (r2<radius*radius) {
                 int alpha=255-sqrtf(r2)*255/radius;
-                at(cx+x,cy+y).blend(color,alpha);
+                at(x,y).blend(color,alpha);
             }
         }
     }
@@ -146,6 +195,7 @@ public:
 
     /// It's useful to know the size of the output, so make these public:
     int wid,ht;
+    Rect frame;
     Pixel *framebuffer;
     
 private:    
