@@ -98,6 +98,11 @@ struct Rect {
     Rect intersect(const Rect &r) const {
         return Rect(X.intersect(r.X), Y.intersect(r.Y));
     }
+    
+    /// Return a shifted rectangle, moved by this far
+    Rect shift(int dx,int dy) const {
+        return Rect(X.lo+dx,X.hi+dx, Y.lo+dy,Y.hi+dy);
+    }
 };
 
 /// This macro loops over the pixels in a rectangle,
@@ -115,19 +120,38 @@ Rect windowToTitlebar(const Rect &w)
 template<typename Pixel>
 class GraphicsOutput {
 public:
-    GraphicsOutput() {
-        gfx=get_graphics();
-        mode=gfx->Mode;
-        info=mode->Info;
-        wid=info->HorizontalResolution;
-        ht=info->VerticalResolution;
-        frame=Rect(0,wid,0,ht);
-        framebuffer=(Pixel *)mode->FrameBufferBase;
-    }
+    // It's useful to know the size of the output, so make these public:
+
+    /// Size of the framebuffer, in pixels
+    int wid,ht; 
+    /// Framebuffer dimensions as a Rect, for clipping
+    Rect frame;
+    /// This is where we draw our pixels
+    Pixel *framebuffer;
+    
+    GraphicsOutput(int wid_,int ht_,Pixel *framebuffer_)
+        :wid(wid_), ht(ht_), frame(0,wid,0,ht),
+         framebuffer(framebuffer_)
+    {}
     
     /// Get a read-write reference to pixel (x,y).  This location must be in bounds.
     Pixel &at(int x,int y) { return framebuffer[x+y*wid]; }
     
+    /// Copy our pixels to another output device
+    void copyTo(const Rect &src,const Rect &dest,GraphicsOutput<Pixel> &target)
+    {
+        // Shift is the transform from src coords to dest coords
+        int shiftX=src.X.lo-dest.X.lo;
+        int shiftY=src.Y.lo-dest.Y.lo;
+        
+        // Clipping:
+        Rect destf=dest.intersect(target.frame);
+        Rect srcf=src.intersect(frame);
+        Rect copy=destf.intersect(srcf.shift(shiftX,shiftY));
+        
+        // Data copy:
+        for_xy_in_Rect(copy) target.at(x,y)=at(x+shiftX,y+shiftY);
+    }
     
     
     /// Draw a box at this cx,cy center, side sizes, and color.
@@ -158,12 +182,21 @@ public:
         fillRect(Rect(r.X.lo,r.X.hi,r.Y.hi-wide,r.Y.hi),color);
     }
     
+    void shadowRect(const Rect &r)
+    {
+        fillRect(r.shift(2,2),0);
+    }
+    
     /// Draw a circle at this cx,cy center, radius, and color.
     void drawWindow(const WindowColors &colors,const Rect &r)
     {
+        shadowRect(r); // content area of window
+        Rect title=windowToTitlebar(r);
+        shadowRect(title);
+        
         fillRect(r,0x202020);
         outlineRect(r,1,colors.border);
-        fillRect(windowToTitlebar(r),colors.titlebar);
+        fillRect(title,colors.titlebar);
     }
     
     /// Draw a blended circle at this cx,cy center, radius, and color.
@@ -180,55 +213,160 @@ public:
             }
         }
     }
+};
+
+
+class UEFIGraphics {
+private:
+    EFI_GRAPHICS_OUTPUT_PROTOCOL *gfx;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE *mode;
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *info;
+    
+public:
+    GraphicsOutput<BGRAPixel> out;
+    
+    UEFIGraphics() 
+        :gfx(get_graphics()),
+         mode(gfx->Mode),
+         info(mode->Info),
+         out(info->HorizontalResolution,
+            info->VerticalResolution,
+            (BGRAPixel *)mode->FrameBufferBase)
+    {}
     
     /// Print background info about the graphics resolution and format
     void printInfo(void) {
         print("mode "); print((int)mode->Mode); 
            print(" of "); print((int)mode->MaxMode); print("\n");
         
-        print(wid); print(" pixels in X; ");
-        print(ht); print(" pixels in Y\n");
+        print(out.wid); print(" pixels in X; ");
+        print(out.ht); print(" pixels in Y\n");
         
         print(info->PixelFormat); print(" pixel format (1==BGR_)\n");
-        print((uint64_t)framebuffer); print(" framebuffer base address\n");
+        print((uint64_t)out.framebuffer); print(" framebuffer base address\n");
     }
-
-    /// It's useful to know the size of the output, so make these public:
-    int wid,ht;
-    Rect frame;
-    Pixel *framebuffer;
     
-private:    
-    EFI_GRAPHICS_OUTPUT_PROTOCOL *gfx;
-    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE *mode;
-    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *info;
 };
 
 
 // Draw a HAL-style glowing eye
-void draw_HAL()
+void draw_HAL(GraphicsOutput<BGRAPixel> &gfx)
 {
-    GraphicsOutput<BGRAPixel> graphics;
     int sz=64; // radius of the disk
-    int cx=graphics.wid-sz+1, cy=sz+1;
-    graphics.drawBlendCircle(cx,cy,sz,BGRAPixel(255,0,0)); // big red disk
-    graphics.drawBlendCircle(cx,cy,12,BGRAPixel(255,255,0)); // yellow middle dot
+    int cx=gfx.wid-sz+1, cy=sz+1;
+    gfx.drawBlendCircle(cx,cy,sz,BGRAPixel(255,0,0)); // big red disk
+    gfx.drawBlendCircle(cx,cy,12,BGRAPixel(255,255,0)); // yellow middle dot
 }
 
 void print_graphics()
 {
-    GraphicsOutput<BGRAPixel> graphics;
+    UEFIGraphics graphics;
     graphics.printInfo();
 }
 
 
+volatile int dont_optimize=0;
+/// Wait for about this many milliseconds
+///  (used to slow down animation to be a visible speed)
+void delay(int ms) {
+    for (int wait=0;wait<ms;wait++)
+        for (int inner=0;inner<500000;inner++)
+            dont_optimize++;
+}
+
+
+
+class Process {
+public:
+	/// Scheduler queue entry (circular doubly-linked list of processes)
+	Process *next; 
+	Process *prev; 
+	
+	/// Process info:
+	const char *name;
+	
+	/// Signal handler list?
+	
+	/// I/O bound or CPU bound?  -> process priority!
+	
+	Rect window;
+	
+	/// Run method:
+	virtual void run(void) {
+		//print("Running "); print(name); print("\n");
+		
+		window=window.shift(32,0); // move window to the right
+	}
+	
+	/// Draw method: update window display onscreen
+	virtual void draw(GraphicsOutput<BGRAPixel> &gfx) {
+	    gfx.drawWindow(defaultColors,window);
+	}
+	
+	Process(const char *name_,Rect r) {
+		next=0;
+		name=name_;
+		window=r;
+	}
+	
+	virtual ~Process() {}
+};
+
+Process *cur=0;
+Process *make_process_runnable(Process *nu)
+{
+	nu->next=cur->next;
+	nu->prev=cur;
+	
+	cur->next->prev=nu; 
+	cur->next=nu;
+	
+	return nu;
+}
+
+void end_process(Process *doomed)
+{
+	// Remove self from doubly-linked list
+	doomed->prev->next=doomed->next; // remove me from the list
+	doomed->next->prev=doomed->prev;
+	if (doomed==cur) cur=doomed->next;
+	print(doomed->name); print("is done\n");
+	delete doomed;
+}
+
+
+
+
 void test_graphics()
 {
-    GraphicsOutput<BGRAPixel> graphics;
-    draw_HAL();
-    graphics.drawWindow(defaultColors,Rect(100,400,300,500));
-    graphics.drawWindow(defaultColors,Rect(350,700,100,400));
+    UEFIGraphics graphics;
+    GraphicsOutput<BGRAPixel> &gfx=graphics.out;
     
+    Process *a=new Process("A",Rect(100,400,300,500));
+    a->next=a;
+    a->prev=a;
+    cur=a;
+    
+    Process *b=new Process("B",Rect(300,700,100,400));
+    make_process_runnable(b);
+    
+    while (1) 
+    {
+        cur->run();
+        cur=cur->next;
+    
+    // Redraw the whole screen:
+    
+        // Background of desktop
+        gfx.fillRect(gfx.frame,0x808080);
+        
+        draw_HAL(gfx);
+        
+        a->draw(gfx);
+        b->draw(gfx);
+        
+        delay(1000);
+    }
     
 /*
     // Basic manual graphics:
