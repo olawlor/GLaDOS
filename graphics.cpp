@@ -60,6 +60,9 @@ struct Span {
     Span(int l,int h) {lo=l; hi=h;}
     Span() { lo=hi=0; }
     
+    /// Return the size of this span
+    int size(void) const { return hi-lo; }
+    
     /// Return the middle (rounded down) of the span
     int middle(void) const { return (lo+hi)/2; }
     
@@ -141,8 +144,8 @@ public:
     void copyTo(const Rect &src,const Rect &dest,GraphicsOutput<Pixel> &target)
     {
         // Shift is the transform from src coords to dest coords
-        int shiftX=src.X.lo-dest.X.lo;
-        int shiftY=src.Y.lo-dest.Y.lo;
+        int shiftX=dest.X.lo-src.X.lo;
+        int shiftY=dest.Y.lo-src.Y.lo;
         
         // Clipping
         Rect destf=dest.intersect(target.frame);
@@ -150,7 +153,7 @@ public:
         Rect copy=destf.intersect(srcf.shift(shiftX,shiftY));
         
         // Data copy:
-        for_xy_in_Rect(copy) target.at(x,y)=at(x+shiftX,y+shiftY);
+        for_xy_in_Rect(copy) target.at(x,y)=at(x-shiftX,y-shiftY);
     }
     
     
@@ -184,17 +187,20 @@ public:
     
     void shadowRect(const Rect &r)
     {
-        fillRect(r.shift(2,2),0);
+        Rect shadow=r.shift(2,2);
+        fillRect(Rect(r.X.hi,shadow.X.hi,shadow.Y.lo,shadow.Y.hi),0); // right side
+        fillRect(Rect(shadow.X.lo,shadow.X.hi,r.Y.hi,shadow.Y.hi),0); // bottom side
     }
     
-    /// Draw a circle at this cx,cy center, radius, and color.
+    /// Draw window decorations for a window of this size
     void drawWindow(const WindowColors &colors,const Rect &r)
     {
         shadowRect(r); // content area of window
+        
         Rect title=windowToTitlebar(r);
         shadowRect(title);
         
-        fillRect(r,0x202020);
+        //fillRect(r,0x202020);// content area (application buffer fills this now)
         outlineRect(r,1,colors.border);
         fillRect(title,colors.titlebar);
     }
@@ -307,21 +313,45 @@ public:
 	
 	/// I/O bound or CPU bound?  -> process priority!
 	
-	Rect window;
+	Rect window; // dimensions of window onscreen
+	OffscreenGraphics<BGRAPixel> offscreen; // window's contents
+	
+	int color;
+	int animation=0;
 	
 	/// Run method:
 	virtual void run(void) {
 		//print("Running "); print(name); print("\n");
 		
-		window=window.shift(2,0); // move window to the right
+		if (name[0]=='A') {
+		    enum {ncolors=4};
+		    if (++color>=ncolors) color=0;
+		    const int colors[ncolors]={0xff008f,0xff007f,0xff006f,0xff007f};
+		    
+		    offscreen.fillRect(offscreen.frame,colors[color]);
+		    
+		    // blue gradient circle
+		    offscreen.drawBlendCircle(50,animation%offscreen.ht,40,0x0000ff); 
+		
+		    window=window.shift(2,0); // move window to the right
+		}
+		else { // B: red/green gradient
+		    for_xy_in_Rect(offscreen.frame) // x,y location of a pixel
+		        offscreen.at(x,y)=BGRAPixel(x*255/offscreen.wid+animation,y*255/offscreen.ht,0); 
+		    
+		}
+		animation+=10; // change brightness per frame
 	}
 	
 	/// Draw method: update window display onscreen
 	virtual void draw(GraphicsOutput<BGRAPixel> &gfx) {
-	    gfx.drawWindow(defaultColors,window);
+	    gfx.drawWindow(defaultColors,window); // window decorations
+	    offscreen.copyTo(offscreen.frame,window,gfx); // contents
 	}
 	
-	Process(const char *name_,Rect r) {
+	Process(const char *name_,Rect r)
+	    :offscreen(r.X.size(),r.Y.size())
+	{
 		next=0;
 		name=name_;
 		window=r;
@@ -358,10 +388,8 @@ void end_process(Process *doomed)
 void test_graphics()
 {
     UEFIGraphics graphics;
-    GraphicsOutput<BGRAPixel> &frontbuffer=graphics.out;
-    OffscreenGraphics<BGRAPixel> backbuffer(frontbuffer.wid,frontbuffer.ht);
-    //GraphicsOutput<BGRAPixel> backbuffer(frontbuffer.wid,frontbuffer.ht,(BGRAPixel *)0x20000);
-    
+    GraphicsOutput<BGRAPixel> &framebuffer=graphics.out;
+    OffscreenGraphics<BGRAPixel> backbuffer(framebuffer.wid,framebuffer.ht);
     
     Process *a=new Process("A",Rect(100,400,300,500));
     a->next=a;
@@ -376,7 +404,7 @@ void test_graphics()
         cur->run();
         cur=cur->next;
     
-    // Redraw everything offscreen, to the back buffer:
+    // Redraw everything offscreen:
         // Background of desktop
         backbuffer.fillRect(backbuffer.frame,0x808080);
         
@@ -385,11 +413,11 @@ void test_graphics()
         a->draw(backbuffer);
         b->draw(backbuffer);
         
-    // Copy back buffer to front buffer so it's visible:
-        backbuffer.copyTo(backbuffer.frame,frontbuffer.frame,frontbuffer);
+        // FIXME: draw the mouse location!
         
+        backbuffer.copyTo(backbuffer.frame,framebuffer.frame,framebuffer);
         
-        delay(10);
+        delay(100);
     }
     
 /*
