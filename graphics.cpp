@@ -137,14 +137,14 @@ public:
     /// Get a read-write reference to pixel (x,y).  This location must be in bounds.
     Pixel &at(int x,int y) { return framebuffer[x+y*wid]; }
     
-    /// Copy our pixels to another output device
+    /// Copy our pixels to another output device.
     void copyTo(const Rect &src,const Rect &dest,GraphicsOutput<Pixel> &target)
     {
         // Shift is the transform from src coords to dest coords
         int shiftX=src.X.lo-dest.X.lo;
         int shiftY=src.Y.lo-dest.Y.lo;
         
-        // Clipping:
+        // Clipping
         Rect destf=dest.intersect(target.frame);
         Rect srcf=src.intersect(frame);
         Rect copy=destf.intersect(srcf.shift(shiftX,shiftY));
@@ -215,6 +215,20 @@ public:
     }
 };
 
+// Stores our pixel data in an offscreen buffer
+template <class Pixel>
+class OffscreenGraphics : public GraphicsOutput<Pixel>
+{
+public:
+    OffscreenGraphics(int wid_,int ht_)
+        :GraphicsOutput<Pixel>(wid_,ht_,(Pixel *)galloc(sizeof(Pixel)*wid_*ht_))
+    {}
+    ~OffscreenGraphics() {
+        gfree(this->framebuffer); this->framebuffer=0;
+    }
+};
+
+
 
 class UEFIGraphics {
 private:
@@ -262,6 +276,10 @@ void print_graphics()
 {
     UEFIGraphics graphics;
     graphics.printInfo();
+    
+    print("Size of framebuffer: ");
+    print((int)(graphics.out.wid*graphics.out.ht*sizeof(BGRAPixel)));
+    println();
 }
 
 
@@ -295,7 +313,7 @@ public:
 	virtual void run(void) {
 		//print("Running "); print(name); print("\n");
 		
-		window=window.shift(32,0); // move window to the right
+		window=window.shift(2,0); // move window to the right
 	}
 	
 	/// Draw method: update window display onscreen
@@ -340,7 +358,10 @@ void end_process(Process *doomed)
 void test_graphics()
 {
     UEFIGraphics graphics;
-    GraphicsOutput<BGRAPixel> &gfx=graphics.out;
+    GraphicsOutput<BGRAPixel> &frontbuffer=graphics.out;
+    OffscreenGraphics<BGRAPixel> backbuffer(frontbuffer.wid,frontbuffer.ht);
+    //GraphicsOutput<BGRAPixel> backbuffer(frontbuffer.wid,frontbuffer.ht,(BGRAPixel *)0x20000);
+    
     
     Process *a=new Process("A",Rect(100,400,300,500));
     a->next=a;
@@ -355,17 +376,20 @@ void test_graphics()
         cur->run();
         cur=cur->next;
     
-    // Redraw the whole screen:
-    
+    // Redraw everything offscreen, to the back buffer:
         // Background of desktop
-        gfx.fillRect(gfx.frame,0x808080);
+        backbuffer.fillRect(backbuffer.frame,0x808080);
         
-        draw_HAL(gfx);
+        draw_HAL(backbuffer);
         
-        a->draw(gfx);
-        b->draw(gfx);
+        a->draw(backbuffer);
+        b->draw(backbuffer);
         
-        delay(1000);
+    // Copy back buffer to front buffer so it's visible:
+        backbuffer.copyTo(backbuffer.frame,frontbuffer.frame,frontbuffer);
+        
+        
+        delay(10);
     }
     
 /*
