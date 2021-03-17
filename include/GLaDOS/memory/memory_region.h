@@ -11,7 +11,7 @@
 // This is the memory address where the region allocations start.
 //  The high bits of this pointer are arbitrary, but
 //   hopefully it doesn't hit anything important in UEFI!
-const uint64_t REGION_BASE=0x10000000; 
+const uint64_t REGION_BASE=0x4000000; 
 
 
 // This datatype stores a block's region number, 
