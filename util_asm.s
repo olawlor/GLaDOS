@@ -48,6 +48,20 @@ write_pagetable:
     mov cr3,rcx
     ret
 
+global inportb
+inportb:
+    mov rax,0
+    mov dx,cx ; address to read
+    in al,dx
+    ret
+
+global outportb
+outportb:
+    mov al,dl ; value to write (rdx, 2nd arg)
+    mov dx,cx ; address to write (rcx, 1st arg)
+    out dx,al
+    ret
+
 ; ---------- stack handling ---------
 
 ; start_function_with_stack

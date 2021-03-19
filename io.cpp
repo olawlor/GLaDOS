@@ -214,6 +214,9 @@ void handle_commands(void)
     else if (cmd=='G') { // play with graphics
       test_graphics();
     }
+    else if (cmd=='e') { // demonstrate event handling
+      test_UI();
+    }
     else if (cmd=='p') { // print info about the page tables
       print_pagetables();
     }
