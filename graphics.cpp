@@ -383,6 +383,24 @@ void end_process(Process *doomed)
 }
 
 
+int desktopColor=0x808080;
+
+/// Draw stuff onscreen as events happen!
+class GraphicsEventHandler : public UserEventHandler {
+public:
+    virtual void handleKeystroke(const EFI_INPUT_KEY &key) {
+        //if (key.UnicodeChar=='r') 
+        desktopColor=0xff0000;
+    }
+    
+    EFI_ABSOLUTE_POINTER_STATE mouse;
+    virtual void handleMouse(EFI_ABSOLUTE_POINTER_STATE &newMouse) {
+        if (newMouse.CurrentX<0) newMouse.CurrentX=0;
+        if (newMouse.CurrentY<0) newMouse.CurrentY=0;
+        mouse=newMouse;
+    }
+}; 
+
 
 
 void test_graphics()
@@ -399,25 +417,33 @@ void test_graphics()
     Process *b=new Process("B",Rect(300,700,100,400));
     make_process_runnable(b);
     
+    GraphicsEventHandler guiHandler;
+    UserEventSource src;
+    
     while (1) 
     {
         cur->run();
         cur=cur->next;
+        
+    // Grab keyboard and mouse events
+        src.waitForEvent(1,guiHandler);
     
     // Redraw everything offscreen:
         // Background of desktop
-        backbuffer.fillRect(backbuffer.frame,0x808080);
+        backbuffer.fillRect(backbuffer.frame,desktopColor);
         
         draw_HAL(backbuffer);
         
         a->draw(backbuffer);
         b->draw(backbuffer);
         
-        // FIXME: draw the mouse location!
+        int cursorX=guiHandler.mouse.CurrentX;
+        int cursorY=guiHandler.mouse.CurrentY;
+        int cursorSize=20; // pixels onscreen
+        int cursorScale=1; // speed of movement
+        backbuffer.fillRect(Rect(cursorX/cursorScale,cursorY/cursorScale,cursorSize/2),0);
         
         backbuffer.copyTo(backbuffer.frame,framebuffer.frame,framebuffer);
-        
-        delay(100);
     }
     
 /*
