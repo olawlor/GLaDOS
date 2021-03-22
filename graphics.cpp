@@ -219,7 +219,7 @@ void test_graphics()
         cur=cur->next;
         
     // Grab keyboard and mouse events
-        src.waitForEvent(20,winmgr);
+        src.waitForEvent(10,winmgr);
     
     // Update the screen
         winmgr.drawScreen(framebuffer);

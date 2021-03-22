@@ -181,16 +181,17 @@ public:
     }
     
     virtual void handleMouse(MouseState &newMouse) {
-        MouseState oldMouse=mouse;
-        
         // Clip the mouse position to lie onscreen
         if (newMouse.x<0) newMouse.x=0;
         if (newMouse.y<0) newMouse.y=0;
         if (newMouse.x>framebuffer.wid) newMouse.x=framebuffer.wid;
         if (newMouse.y>framebuffer.ht)  newMouse.y=framebuffer.ht;
         
+        // Update the mouse position
+        MouseState oldMouse=mouse;
         mouse=newMouse;
         
+        // Route the event to the appropriate window:
         for (Window &w:windows) 
         {
             // Check for mouse interaction with the titlebar:
@@ -198,7 +199,8 @@ public:
             if (mouse.buttonDown(0) && windowToTitlebar(w).contains(oldMouse))
             {
                 // FIXME: check for widgets like close
-                // drag the window around
+                
+                // Drag the window around
                 w.move(newMouse-oldMouse);
                 return;
             }
@@ -214,6 +216,8 @@ public:
                 return;
             }
         }
+        
+        // If we get here, the mouse is on the desktop?
     }
 
 private:
