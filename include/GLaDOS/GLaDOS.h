@@ -69,36 +69,10 @@ extern void print_hex(uint64_t value,long digits=16,char separator=' ');
 #include "memory/memory.h" // galloc/gfree
 
 
-// ui.cpp event-driven user interface handling:
-
-/// Abstract target for user interface events.
-///  Inherit from this class to handle new event types.
-class UserEventHandler {
-public:
-    virtual void handleKeystroke(const EFI_INPUT_KEY &key) {}
-    virtual void handleMouse(EFI_ABSOLUTE_POINTER_STATE &mouse) {}
-}; 
-
-/// Watches for UEFI events, and passes them to a handler.
-class UserEventSource {
-public:    
-    UserEventSource();
-    
-    /// Wait up to delay milliseconds for a user event.
-    ///  If one arrives, pass it to this handler and return true.
-    ///  If nothing happens, return false.
-    bool waitForEvent(int delayMS,UserEventHandler &handler);
-
-private:
-    bool probeMouse(void);
-    EFI_ABSOLUTE_POINTER_STATE mouse;
-};
 
 /// These are the x86 "in" and "out" I/O instructions.
 extern "C" void outportb(int addr,int val);
 extern "C" int inportb(int addr);
-
-
 
 
 

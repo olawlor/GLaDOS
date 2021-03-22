@@ -8,6 +8,8 @@
 */
 #include "GLaDOS/GLaDOS.h"
 #include "GLaDOS/gui/graphics.h"
+#include "GLaDOS/gui/window.h"
+
 
 EFI_GRAPHICS_OUTPUT_PROTOCOL *get_graphics(void)
 {
@@ -26,7 +28,7 @@ private:
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *info;
     
 public:
-    GraphicsOutput<BGRAPixel> out;
+    GraphicsOutput<ScreenPixel> out;
     
     UEFIGraphics() 
         :gfx(get_graphics()),
@@ -35,7 +37,7 @@ public:
          out(info->HorizontalResolution,
             info->VerticalResolution,
             info->HorizontalResolution,
-            (BGRAPixel *)mode->FrameBufferBase)
+            (ScreenPixel *)mode->FrameBufferBase)
     {}
     
     /// Print background info about the graphics resolution and format
@@ -53,43 +55,6 @@ public:
 };
 
 
-struct WindowColors {
-    BGRAPixel titlebar; // behind text on the titlebar
-    BGRAPixel border; // hard border around window
-};
-const WindowColors defaultColors={ 0x685556, 0xff0000 };
-
-
-/// Given a rect for a window, return the rect for the titlebar
-Rect windowToTitlebar(const Rect &w) 
-{
-    return Rect(w.X.middle(),w.X.hi,
-        w.Y.lo-32, w.Y.lo);
-}
-    
-/// Draw window decorations for a window of this size
-void drawWindow(GraphicsOutput<BGRAPixel> &gfx,const WindowColors &colors,const Rect &r)
-{
-    gfx.shadowRect(r); // content area of window
-    
-    Rect title=windowToTitlebar(r);
-    gfx.shadowRect(title);
-    
-    gfx.outlineRect(r,1,colors.border);
-    gfx.fillRect(title,colors.titlebar);
-}
-
-
-
-
-// Draw a HAL-style glowing eye
-void draw_HAL(GraphicsOutput<BGRAPixel> &gfx)
-{
-    int sz=64; // radius of the disk
-    int cx=gfx.wid-sz+1, cy=sz+1;
-    gfx.drawBlendCircle(cx,cy,sz,BGRAPixel(255,0,0)); // big red disk
-    gfx.drawBlendCircle(cx,cy,12,BGRAPixel(255,255,0)); // yellow middle dot
-}
 
 void print_graphics()
 {
@@ -97,7 +62,7 @@ void print_graphics()
     graphics.printInfo();
     
     print("Size of framebuffer: ");
-    print((int)(graphics.out.wid*graphics.out.ht*sizeof(BGRAPixel)));
+    print((int)(graphics.out.wid*graphics.out.ht*sizeof(ScreenPixel)));
     println();
 }
 
@@ -113,61 +78,42 @@ void delay(int ms) {
 
 
 
-class Process {
+
+/// A Process gets CPU time.
+///   Child classes override the run and event handler methods.
+class Process : public UserEventHandler {
 public:
 	/// Scheduler queue entry (circular doubly-linked list of processes)
 	Process *next; 
 	Process *prev; 
 	
+	/// Graphical window onscreen
+	Window &window;
+	/// Where we draw our graphical output:
+	GraphicsOutput<ScreenPixel> &gfx;
+	
 	/// Process info:
-	const char *name;
 	
 	/// Signal handler list?
 	
 	/// I/O bound or CPU bound?  -> process priority!
 	
-	Rect window; // dimensions of window onscreen
-	OffscreenGraphics<BGRAPixel> offscreen; // window's contents
-	
-	int color;
-	int animation=0;
 	
 	/// Run method:
-	virtual void run(void) {
-		//print("Running "); print(name); print("\n");
-		
-		if (name[0]=='A') { // bouncing blue circle
-		    offscreen.fillRect(offscreen.frame,0xff008f);
-		    
-		    offscreen.drawBlendCircle(50,animation%offscreen.ht,40,0x0000ff); 
-		
-		    window=window.shift(2,0); // move window to the right
-		}
-		else { // B: red/green gradient
-		    for_xy_in_Rect(offscreen.frame) // x,y location of a pixel
-		        offscreen.at(x,y)=BGRAPixel(x*255/offscreen.wid+animation,y*255/offscreen.ht,0); 
-		    
-		}
-		animation+=10; // change brightness per frame
-	}
+	virtual void run(void) {}
 	
-	/// Draw method: update window display onscreen
-	virtual void draw(GraphicsOutput<BGRAPixel> &gfx) {
-	    drawWindow(gfx,defaultColors,window); // window decorations
-	    offscreen.copyTo(offscreen.frame,window,gfx); // contents
-	}
-	
-	Process(const char *name_,Rect r)
-	    :offscreen(r.X.size(),r.Y.size())
+	Process(Window &window_)
+	    :window(window_),
+	    gfx(window.offscreen)
 	{
-		next=0;
-		name=name_;
-		window=r;
+		next=prev=0;
+		window.handler=this; // we handle events for our window
 	}
 	
 	virtual ~Process() {}
 };
 
+/// This is the next runnable process:
 Process *cur=0;
 Process *make_process_runnable(Process *nu)
 {
@@ -186,88 +132,98 @@ void end_process(Process *doomed)
 	doomed->prev->next=doomed->next; // remove me from the list
 	doomed->next->prev=doomed->prev;
 	if (doomed==cur) cur=doomed->next;
-	print(doomed->name); print("is done\n");
+	// print(doomed->name); print("is done\n");
 	delete doomed;
 }
 
 
-int desktopColor=0x808080;
 
-/// Draw stuff onscreen as events happen!
-class GraphicsEventHandler : public UserEventHandler {
+/// Draw a bouncing ball
+class ProcessBall : public Process {
 public:
-    virtual void handleKeystroke(const EFI_INPUT_KEY &key) {
-        //if (key.UnicodeChar=='r') 
-        desktopColor=0xff0000;
+	ProcessBall(Window &window_)
+	    :Process(window_)
+	{}
+	
+	int animation=0;
+	int background=0xff008f;
+	Point userClick;
+	virtual void run(void)
+	{
+	    gfx.fillRect(gfx.frame,background);
+	    
+	    Point circle(50,animation%gfx.ht);
+	    if (userClick.x!=0) circle=userClick;
+	    gfx.drawBlendCircle(circle.x,circle.y,40,0x0000ff); 
+	
+	    window.move(Point(2,0)); // move window to the right
+		animation+=10; // change brightness per frame
+	}
+	
+    virtual void handleMouse(MouseState &mouse) {
+        if (mouse.buttonDown(0))
+            userClick=mouse;
     }
-    
-    EFI_ABSOLUTE_POINTER_STATE mouse;
-    virtual void handleMouse(EFI_ABSOLUTE_POINTER_STATE &newMouse) {
-        if (newMouse.CurrentX<0) newMouse.CurrentX=0;
-        if (newMouse.CurrentY<0) newMouse.CurrentY=0;
-        mouse=newMouse;
+    virtual void handleKeystroke(const KeyTyped &key) {
+        background=0xff0000; //<- background goes red, just a visible response
     }
-}; 
+};
+
+/// Draw a color gradient
+class ProcessGradient : public Process {
+public:
+	ProcessGradient(Window &window_)
+	    :Process(window_)
+	{}
+	
+	int blue=0;
+	virtual void run(void)
+    {
+		for_xy_in_Rect(gfx.frame) // x,y location of a pixel
+		    gfx.at(x,y)=ScreenPixel(x*255/gfx.wid,y*255/gfx.ht,blue);
+	}
+	
+    virtual void handleKeystroke(const KeyTyped &key) {
+        blue=255; //<- just a visible response
+    }
+};
 
 
 
 void test_graphics()
 {
     UEFIGraphics graphics;
-    GraphicsOutput<BGRAPixel> &framebuffer=graphics.out;
-    OffscreenGraphics<BGRAPixel> backbuffer(framebuffer.wid,framebuffer.ht);
+    GraphicsOutput<ScreenPixel> &framebuffer=graphics.out;
+    WindowManager winmgr(framebuffer);
     
-    Process *a=new Process("A",Rect(100,400,300,500));
+    // Make a few little hardcoded processes, with their own windows:
+    Window *wa=new Window("A",Rect(100,400,300,500));
+    winmgr.add(wa);
+    Process *a=new ProcessBall(*wa);
     a->next=a;
     a->prev=a;
     cur=a;
     
-    Process *b=new Process("B",Rect(300,700,100,400));
+    Window *wb=new Window("B",Rect(300,700,100,400));
+    winmgr.add(wb);
+    Process *b=new ProcessGradient(*wb);
     make_process_runnable(b);
-    
-    GraphicsEventHandler guiHandler;
+        
+    // Connect to keyboard and mouse:
     UserEventSource src;
     
     while (1) 
     {
+    // Run some processes
         cur->run();
         cur=cur->next;
         
     // Grab keyboard and mouse events
-        src.waitForEvent(10,guiHandler);
+        src.waitForEvent(20,winmgr);
     
-    // Redraw everything offscreen:
-        // Background of desktop
-        backbuffer.fillRect(backbuffer.frame,desktopColor);
-        
-        draw_HAL(backbuffer);
-        
-        a->draw(backbuffer);
-        b->draw(backbuffer);
-        
-        int cursorX=guiHandler.mouse.CurrentX;
-        int cursorY=guiHandler.mouse.CurrentY;
-        int cursorSize=20; // pixels onscreen
-        int cursorScale=1; // speed of movement
-        backbuffer.fillRect(Rect(cursorX/cursorScale,cursorY/cursorScale,cursorSize/2),0);
-        
-        backbuffer.copyTo(backbuffer.frame,framebuffer.frame,framebuffer);
+    // Update the screen
+        winmgr.drawScreen(framebuffer);
     }
-    
-/*
-    // Basic manual graphics:
-    EFI_GRAPHICS_OUTPUT_PROTOCOL *gfx=0;
-	EFI_GUID gfx_guid= EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
-    ST->BootServices->LocateProtocol(&gfx_guid,0,(void **)&gfx);
-    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE *mode=gfx->Mode;
-    
-
-    int *framebuffer=(int *)mode->FrameBufferBase;
-    int wid=mode->Info->HorizontalResolution;
-    for (int y=0;y<500;y++) 
-    for (int x=0;x<500;x++) 
-        framebuffer[x+y*wid]=0x00ff00; // <- big green box
-*/        
 }
 
 

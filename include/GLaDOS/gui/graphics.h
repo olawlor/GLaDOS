@@ -43,6 +43,26 @@ struct BGRAPixel {
     }
 };
 
+/// A "ScreenPixel" is the default pixel data storage type.
+/// For example, on a 16-bit Raspberry Pi it might be a R5G5B5 pixel.
+///  FIXME: this will need to be macro tuned for different screens.
+typedef BGRAPixel ScreenPixel;
+
+/// A Point is a location onscreen, a point (x,y).
+///  x increases to the right.  y increases down.
+struct Point {
+    int x,y;
+    
+    Point() {x=y=0;}
+    Point(int x_, int y_) :x(x_), y(y_) {}
+    
+    // Subtract these two points, giving a relative move
+    Point operator-(const Point &p) const {
+        return Point(x-p.x,y-p.y);
+    }
+};
+
+
 /// A Span is a range of values, from lo to hi-1.
 ///  It's used inside rect to avoid duplicate min/max and x/y code.
 struct Span {
@@ -57,8 +77,13 @@ struct Span {
     /// Return the middle (rounded down) of the span
     int middle(void) const { return (lo+hi)/2; }
     
+    /// Return true if this location is inside our range
+    bool contains(int i) const {
+        return (i>=lo) && (i<hi);
+    }
+    
     /// Intersect this span: return a Span containing only pixels in both spans.
-    Span intersect(const Span &other) const {
+    Span intersection(const Span &other) const {
         return Span(lo>other.lo?lo:other.lo,
             hi<other.hi?hi:other.hi);
     }
@@ -88,15 +113,25 @@ struct Rect {
     Rect(const Span &spanX,const Span &spanY)
         :X(spanX), Y(spanY) {}
     
+    /// Extract the top-left corner of this Rect
+    Point topleft(void) const { return Point(X.lo,Y.lo); }
+    
+    /// Return true if this (x,y) is inside us.
+    bool contains(int x,int y) const {
+        return X.contains(x) && Y.contains(y);
+    }
+    bool contains(const Point &p) const { return contains(p.x,p.y); }
+    
     /// Intersect these rectangles: return a Rectangle containing only pixels inside both.
-    Rect intersect(const Rect &r) const {
-        return Rect(X.intersect(r.X), Y.intersect(r.Y));
+    Rect intersection(const Rect &r) const {
+        return Rect(X.intersection(r.X), Y.intersection(r.Y));
     }
     
     /// Return a shifted rectangle, moved by this far
-    Rect shift(int dx,int dy) const {
+    Rect shifted(int dx,int dy) const {
         return Rect(X.lo+dx,X.hi+dx, Y.lo+dy,Y.hi+dy);
     }
+    Rect shifted(const Point &p) const { return shifted(p.x,p.y); }
 };
 
 /// This macro loops over the pixels in a rectangle,
@@ -142,9 +177,9 @@ public:
         int shiftY=dest.Y.lo-src.Y.lo;
         
         // Clipping
-        Rect destf=dest.intersect(target.frame);
-        Rect srcf=src.intersect(frame);
-        Rect copy=destf.intersect(srcf.shift(shiftX,shiftY));
+        Rect destf=dest.intersection(target.frame);
+        Rect srcf=src.intersection(frame);
+        Rect copy=destf.intersection(srcf.shifted(shiftX,shiftY));
         
         // Data copy:
         for_xy_in_Rect(copy) target.at(x,y)=at(x-shiftX,y-shiftY);
@@ -153,7 +188,7 @@ public:
     /// Fill a rectangle with a solid color
     void fillRect(const Rect &r,const Pixel &color)
     {
-        Rect rf=r.intersect(frame);
+        Rect rf=r.intersection(frame);
         for_xy_in_Rect(rf) at(x,y)=color;
     }
     
@@ -173,7 +208,7 @@ public:
     /// Draw a dark shadow underneath this rectangle
     void shadowRect(const Rect &r)
     {
-        Rect shadow=r.shift(2,2);
+        Rect shadow=r.shifted(2,2);
         // Right side:
         fillRect(Rect(r.X.hi,shadow.X.hi,shadow.Y.lo,shadow.Y.hi),0); 
         // Bottom side:
@@ -185,7 +220,7 @@ public:
     void drawBlendCircle(int cx,int cy,int radius,const Pixel &color)
     {
         Rect r(cx,cy,radius);
-        Rect rf=r.intersect(frame);
+        Rect rf=r.intersection(frame);
         for_xy_in_Rect(rf) 
         {
             int r2=(x-cx)*(x-cx)+(y-cy)*(y-cy);

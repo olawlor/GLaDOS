@@ -46,7 +46,7 @@ public:
 	}
 	
 	/// The destructor runs delete on everything in the list
-	// FIXME: make this selectable via policy, not everything comes from new.
+	// FIXME: make this selectable via policy, because not everything comes from new.
 	~IntrusiveList() {
 		NODE *cur=head;
 		while (cur!=NULL)
@@ -56,6 +56,34 @@ public:
 			cur=next;
 		}
 	}
+	
+	/// C++ iterator support: loop over the list 
+	class Iterator {
+	    NODE *cur;
+	public:
+	    Iterator(NODE *cur_) :cur(cur_) {}
+	    
+	    // C++ "extract this element" interface:
+	    NODE &operator*() {
+	        return *cur;
+	    }
+	    
+	    // Use the prefix operator++
+	    Iterator &operator++() {
+	        cur=cur->next;
+	        return *this;
+	    }
+	    
+	    // Compare iterators by comparing their pointers
+	    bool operator!=(const Iterator &it) const {
+	        return cur != it.cur;
+	    }
+	};
+	/// "begin" is the start of the list.
+	Iterator begin() const { return head; }
+	/// "end" is the NULL at the end of the list.
+	Iterator end() const { return 0; }
+	
 private:
 	// Don't try to copy or assign this class (messes up head, double free, etc.)
 	IntrusiveList(const IntrusiveList &copy) = delete;
