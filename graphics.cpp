@@ -11,6 +11,8 @@
 #include "GLaDOS/gui/window.h"
 
 
+
+/* UEFI framebuffer access */
 EFI_GRAPHICS_OUTPUT_PROTOCOL *get_graphics(void)
 {
     static EFI_GRAPHICS_OUTPUT_PROTOCOL *gfx=0;

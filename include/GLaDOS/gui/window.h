@@ -143,21 +143,27 @@ public:
             isTop?topColors:backColors,
             w);
     }
-
-    /// Draw everything onscreen: desktop, windows, mouse.
-    virtual void drawScreen(GraphicsOutput<ScreenPixel> &framebuffer)
+    
+    /// Draw all onscreen windows back to front
+    virtual void drawAllWindows(GraphicsOutput<ScreenPixel> &gfx)
     {
-        drawDesktop(backbuffer);
-        
         // Draw windows back-to-front (currently in wrong stack order)
         vector<Window *> reorder;
         for (Window &w:windows) reorder.push_back(&w);
         for (int i=reorder.size()-1;i>=0;i--)
         {
             Window &w=*reorder[i];
-	        drawWindowDecorations(backbuffer,i==0,w);
-            w.draw(backbuffer);
+	        drawWindowDecorations(gfx,i==0,w);
+            w.draw(gfx);
         }
+    }
+
+    /// Draw everything onscreen: desktop, windows, mouse.
+    virtual void drawScreen(GraphicsOutput<ScreenPixel> &framebuffer)
+    {
+        drawDesktop(backbuffer);
+        
+        drawAllWindows(backbuffer);
         
         drawMouse(backbuffer);
         
@@ -167,7 +173,22 @@ public:
 /// Event handling:
     MouseState mouse;
     
+    Window *keyboardFocus=0;
+
+/// Preferences area of window manager
+    typedef enum { 
+        clickFocus=1, // click mouse in window (or alt-tab), it has keyboard focus
+        mouseFocus=2, // mouse over window, it has keyboard focus
+     } focusMode_t;
+    focusMode_t focusMode=clickFocus; 
+    
     virtual void handleKeystroke(const KeyTyped &key) {
+        // Route to the focused window first
+        if (focusMode==clickFocus && keyboardFocus && keyboardFocus->handler) {
+            keyboardFocus->handler->handleKeystroke(key);
+            return;
+        }
+    
         // Route keystroke to the window the mouse is currently over
         for (Window &w:windows) 
             if (w.onscreen.contains(mouse) && w.handler)
@@ -177,15 +198,16 @@ public:
             }
         
         // Keystroke out in the desktop: reset the desktop color (demo)
-        desktopColor=0xff0000;
+        if (key.unicode=='r') desktopColor=0xff0000; // turn desktop red
+        if (key.unicode=='g') desktopColor=0x808080; // turn desktop gray again
     }
     
     virtual void handleMouse(MouseState &newMouse) {
         // Clip the mouse position to lie onscreen
         if (newMouse.x<0) newMouse.x=0;
         if (newMouse.y<0) newMouse.y=0;
-        if (newMouse.x>framebuffer.wid) newMouse.x=framebuffer.wid;
-        if (newMouse.y>framebuffer.ht)  newMouse.y=framebuffer.ht;
+        if (newMouse.x>=framebuffer.wid) newMouse.x=framebuffer.wid-1;
+        if (newMouse.y>=framebuffer.ht)  newMouse.y=framebuffer.ht-1;
         
         // Update the mouse position
         MouseState oldMouse=mouse;
@@ -201,23 +223,34 @@ public:
                 // FIXME: check for widgets like close
                 
                 // Drag the window around
-                w.move(newMouse-oldMouse);
+                w.move(mouse-oldMouse);
                 return;
             }
             
             // Check for interaction with a window content area
             //   FIXME: do we want enter/leave events too?
-            if (w.onscreen.contains(newMouse) && w.handler)
+            if (w.onscreen.contains(mouse))
             {
-                // Shift to local coordinates:
-                MouseState local=newMouse;
-                local.makeOrigin(w.onscreen.topleft());
-                w.handler->handleMouse(local);
-                return;
+                if (&w != keyboardFocus && focusMode==clickFocus && mouse.buttonDown(0))
+                { // update keyboard focus (click to focus)
+                    keyboardFocus=&w;
+                    return; //<- click doesn't get passed to application
+                }
+                
+                if (w.handler)
+                {
+                    // Shift to local coordinates:
+                    MouseState local=mouse;
+                    local.makeOrigin(w.onscreen.topleft());
+                    w.handler->handleMouse(local);
+                    return;
+                }
             }
         }
         
         // If we get here, the mouse is on the desktop?
+        if (focusMode==clickFocus && mouse.buttonDown(0))
+            keyboardFocus=0;
     }
 
 private:
