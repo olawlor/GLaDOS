@@ -50,7 +50,7 @@ public:
 
 private:    
     const GraphicsOutput<BGRAPixel> &chars;
-    Rect charBox;
+    Rect letterBox;
 };
 
 

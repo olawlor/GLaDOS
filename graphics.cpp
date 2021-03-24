@@ -26,10 +26,8 @@ const KernelBuiltinImages &KernelBuiltinImages::load()
     return *builtinImages;
 }
 
-
-const static //<- forgive me, this modifies the array inside the header
+// These are the header-ified copies of the PNG source images:
 #include "GLaDOS/gui/img/Mouse.h"
-const static
 #include "GLaDOS/gui/img/Courier.h"
 
 KernelBuiltinImages::KernelBuiltinImages()
@@ -37,6 +35,8 @@ KernelBuiltinImages::KernelBuiltinImages()
      courier(Courier_png,Courier_png_len)
 {}
 
+// PNG decode library from https://github.com/lvandeve/lodepng
+//  (modified to work in GLaDOS)
 #include "lodepng.h"
 
 PngImage::PngImage(const void *imageData,uint64_t imageDataBytes)
@@ -76,7 +76,7 @@ Font &Font::load()
 /// Load up a font by this name
 Font::Font(const char *name,int size)
     :chars(KernelBuiltinImages::load().courier),
-     charBox(0,10,0,15)
+     letterBox(0,10,0,15)
 {
     /// FIXME: check the name and size
 }
@@ -97,24 +97,24 @@ Point Font::draw(const StringSource &text,const Point &initialStart,
     while (text.get(buf,index++)) 
         for (unsigned char c:buf) {
             if (c>=128) { // uh oh, unicode!  Just to a black box.
-                gfx.fillRect(charBox.shifted(start+corner),color);
+                gfx.fillRect(letterBox.shifted(start+corner),color);
                 start.x+=charWid;
             }
             else if (c>=32) { // printable ASCII
                 // Figure out where we're at in the font image
-                int row=c/wrapX-2;
+                int row=c/wrapX-2; // font image skips 2 rows of control chars
                 int col=c%wrapX;
                 Point srcStart(stepX*col,stepY*row);
                 chars.colorizeTo(
-                    charBox.shifted(srcStart), // src in font image
+                    letterBox.shifted(srcStart), // src in font image
                     color,
-                    charBox.shifted(start+corner), // dest rect in gfx
+                    letterBox.shifted(start+corner), // dest rect in gfx
                     gfx);
                 start.x+=charWid;
             }
             else if (c=='\n') { // newline
                 start.x=initialStart.x;
-                start.y+=charBox.ht();
+                start.y+=letterBox.ht();
             }
             else if (c=='\t') { // hard tab
                 start.x+=4*charWid;
@@ -123,9 +123,9 @@ Point Font::draw(const StringSource &text,const Point &initialStart,
             }
             
             // Check for char-by-char text wrap: if so, fake a newline.
-            if (start.x+charBox.wid()>gfx.wid) { 
+            if (start.x+letterBox.wid()>gfx.wid) { 
                 start.x=initialStart.x;
-                start.y+=charBox.ht();
+                start.y+=letterBox.ht();
             }
         }
     
@@ -183,20 +183,31 @@ void print_graphics()
 {
     UEFIGraphics graphics;
     graphics.printInfo();
+    GraphicsOutput<ScreenPixel> &gfx=graphics.out;
     
     print("Size of framebuffer: ");
-    print((int)(graphics.out.wid*graphics.out.ht*sizeof(ScreenPixel)));
+    print((int)(gfx.wid*gfx.ht*sizeof(ScreenPixel)));
     println();
     
-    // plop a mouse in the top left corner (debug only)
-    GraphicsOutput<ScreenPixel> &framebuffer=graphics.out;
-    WindowManager winmgr(framebuffer);
-    winmgr.mouse.x=200; winmgr.mouse.y=50;
-    winmgr.drawMouse(framebuffer);
+    const KernelBuiltinImages &imgs=KernelBuiltinImages::load();
+    const PngImage &mouse=imgs.mouse;
+    mouse.printSize();
+    gfx.fillRect(Rect(0,256,0,96),0xffffff); // white background
+    mouse.blendTo(mouse.frame,mouse.frame,gfx); // mouse
     
-    // draw some text with our own font
     Font &f=Font::load();
-    f.draw("Hello! Is any of this making sense?",Point(100,30),0xFFFFFF,framebuffer);
+    f.draw("Hello world!",Point(50,50),0,gfx);
+    /*
+    const PngImage &font=imgs.courier;
+    Rect letterBox(0,10, 0,16);
+    
+    for (int bloc=0;bloc<260;bloc+=7)
+        font.colorizeTo(letterBox.shifted(32,32), // source rect (letter)
+            0, // font color (black)
+            letterBox.shifted(bloc,0), // dest rect (where it goes)
+            gfx); // all the chars of the font
+            */
+    
 }
 
 
