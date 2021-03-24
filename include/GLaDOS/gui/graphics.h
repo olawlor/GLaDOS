@@ -132,6 +132,16 @@ struct Rect {
         return Rect(X.lo+dx,X.hi+dx, Y.lo+dy,Y.hi+dy);
     }
     Rect shifted(const Point &p) const { return shifted(p.x,p.y); }
+    
+    /// For debugging, dump this rect to the screen:
+    void printSize(void) const
+    {
+        print("Rect: ");
+        print((int)X.lo); print(" .. "); print((int)X.hi); 
+        print(" x "); 
+        print((int)Y.lo); print(" .. "); print((int)Y.hi); 
+        print("\n");
+    }
 };
 
 /// This macro loops over the pixels in a rectangle,
@@ -168,21 +178,53 @@ public:
     
     /// Get a read-write reference to pixel (x,y).  This location must be in bounds.
     Pixel &at(int x,int y) { return framebuffer[x+y*pixelsPerRow]; }
+    const Pixel &at(int x,int y) const { return framebuffer[x+y*pixelsPerRow]; }
     
-    /// Copy our pixels to another output device.
-    void copyTo(const Rect &src,const Rect &dest,GraphicsOutput<Pixel> &target)
+    /// Figure out the safe rectangle used for copying our src to target dest,
+    ///   and the x,y data shift to apply to us.
+    Rect copySetupRect(const Rect &src,const Rect &dest,
+        GraphicsOutput<Pixel> &target,
+        Point &dataShift) const 
     {
-        // Shift is the transform from src coords to dest coords
-        int shiftX=dest.X.lo-src.X.lo;
-        int shiftY=dest.Y.lo-src.Y.lo;
+        // DataShift is the transform from src coords to dest coords
+        dataShift.x=src.X.lo-dest.X.lo;
+        dataShift.y=src.Y.lo-dest.Y.lo;
         
         // Clipping
         Rect destf=dest.intersection(target.frame);
         Rect srcf=src.intersection(frame);
-        Rect copy=destf.intersection(srcf.shifted(shiftX,shiftY));
-        
-        // Data copy:
-        for_xy_in_Rect(copy) target.at(x,y)=at(x-shiftX,y-shiftY);
+        Rect copy=destf.intersection(srcf.shifted(-dataShift.x,-dataShift.y));
+        return copy;
+    }
+    
+    /// Direct copy our pixels to another output device.
+    void copyTo(const Rect &src,const Rect &dest,GraphicsOutput<Pixel> &target) const 
+    {
+        Point dataShift;
+        Rect copy=copySetupRect(src,dest,target, dataShift);
+        for_xy_in_Rect(copy) target.at(x,y)=at(x+dataShift.x,y+dataShift.y);
+    }
+    
+    /// Alpha-blend our pixels to another output device
+    void blendTo(const Rect &src,const Rect &dest,GraphicsOutput<Pixel> &target) const 
+    {
+        Point dataShift;
+        Rect copy=copySetupRect(src,dest,target, dataShift);
+        for_xy_in_Rect(copy) {
+            const Pixel &s=at(x+dataShift.x,y+dataShift.y);
+            target.at(x,y).blend(s,s.A);
+        }
+    }
+    /// Alpha-blend our pixels to another output device, with colorize:
+    ///   We use our alpha, and color's RGB.
+    void colorizeTo(const Rect &src,Pixel color,const Rect &dest,GraphicsOutput<Pixel> &target) const 
+    {
+        Point dataShift;
+        Rect copy=copySetupRect(src,dest,target, dataShift);
+        for_xy_in_Rect(copy) {
+            const Pixel &s=at(x+dataShift.x,y+dataShift.y);
+            target.at(x,y).blend(color,s.A);
+        }
     }
     
     /// Fill a rectangle with a solid color
@@ -229,6 +271,15 @@ public:
                 at(x,y).blend(color,alpha);
             }
         }
+    }
+    
+    /// For debugging, dump this image to the screen:
+    void printSize(void) const
+    {
+        print("Pixels: ");
+        print((int)wid); print(" x "); print((int)ht); print("\n");
+        print("Pixel 0,0="); print(*(UINT64 *)framebuffer);
+        print("\n");
     }
 };
 

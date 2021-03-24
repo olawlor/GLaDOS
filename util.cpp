@@ -45,6 +45,33 @@ void check_error(UINT64 error,const char *function,int line) {
 }
 
 
+/* Placeholder-quality versions of memory allocation functions. */
+#include "stdlib.h"
+void *malloc(size_t size) {
+    return galloc(size);
+}
+void free(void *ptr) {
+    gfree(ptr);
+}
+void *calloc(size_t nmemb, size_t size)
+{
+    return galloc(nmemb*size);
+}
+void *realloc(void *ptr, size_t size)
+{
+    void *next=malloc(size);
+    if (ptr!=0) { // copy old data
+        memcpy(next,ptr,size); //<- FIXME: data leak (or even crash!) if new size bigger than old ptr size!
+        free(ptr);
+    }
+    return next;
+}
+#include "string.h"
+void *memcpy(void *dest, const void *src, size_t n)
+{
+    return __builtin_memcpy(dest,src,n);
+}
+
 
 /* The compiler seems to want a function with this name as soon
    as you mention a "noexcept" function like operator delete.

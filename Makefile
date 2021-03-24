@@ -31,7 +31,7 @@ CFLAGS=$(WARNINGS) $(OPTS)	$(EFI_CFLAGS) -I.  -Iinclude
 LDFLAGS=$(OPTS) $(EFI_LDFLAGS)
 
 # Compile these object files, link the kernel, copy to drive image:
-OBJ=boot.o graphics.o ui.o io.o util.o util_asm.o run_linux.o
+OBJ=libraries/lodepng.o boot.o graphics.o ui.o io.o util.o util_asm.o run_linux.o
 KERNEL=glados.efi
 DRIVE=my_efi.hdd
 
@@ -43,7 +43,7 @@ all: run
 
 # Here's how we compile each source file:
 %.o: %.cpp
-	clang $< $(CFLAGS)  -c 
+	clang -c $< $(CFLAGS) -o $@
 
 %.o: %.s
 	nasm -f win64 $< -o $@

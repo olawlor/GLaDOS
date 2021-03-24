@@ -15,6 +15,9 @@
 #ifndef __GLADOS_GUI_EVENT_H
 #  include "event.h" /* for "UserEventHandler" */
 #endif
+#ifndef __GLADOS_GUI_IMAGE_H
+#  include "image.h" /* for PngImage */
+#endif
 
 
 /// A Window is a box visible onscreen.
@@ -95,17 +98,22 @@ public:
     /// Mouse pointer
     virtual void drawMouse(GraphicsOutput<ScreenPixel> &gfx)
     {
-        int cursorSizeX=16; // pixels onscreen
-        int cursorSizeY=20;
-        Rect cursorRect(
-            mouse.x,mouse.x+cursorSizeX,
-            mouse.y,mouse.y+cursorSizeY
-        );
-        // FIXME: bring in a normal arrow shape here
+        // Bring in a normal arrow shape
+        const PngImage &cursor=KernelBuiltinImages::load().mouse;
+        
+        int cursorSizeX=11; // pixels onscreen
+        int cursorSizeY=17;
+        int x=mouse.x-2; // shift to cursor hotspot
+        int y=mouse.y-2;
+        Rect cursorRect=cursor.frame.shifted(x,y);
+        
+        cursor.blendTo(cursor.frame,cursorRect,gfx);
+        
         // draw cursor in black:
-        backbuffer.fillRect(cursorRect,0);
+        //backbuffer.fillRect(cursorRect,0);
+        
         // white glowy tip
-        backbuffer.drawBlendCircle(mouse.x,mouse.y,3,0xffffff);
+        //backbuffer.drawBlendCircle(mouse.x,mouse.y,3,0xffffff);
     }
 
     struct WindowColors {

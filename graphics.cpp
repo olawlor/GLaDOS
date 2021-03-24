@@ -10,6 +10,62 @@
 #include "GLaDOS/gui/graphics.h"
 #include "GLaDOS/gui/window.h"
 
+/* Baked-in PNG images: */
+#include "GLaDOS/gui/image.h"
+
+static KernelBuiltinImages *builtinImages=0;
+    
+/// Return a reference to a single copy of the loaded images.
+///  (Avoids global initialization order problems by doing this delayed.)
+const KernelBuiltinImages &KernelBuiltinImages::load()
+{
+    if (!builtinImages) 
+    { // finally call actual constructor
+        builtinImages=new KernelBuiltinImages();
+    }
+    if (builtinImages->sanity2!=2) panic("Borked sanity check: ",builtinImages->sanity2);
+    return *builtinImages;
+}
+
+
+const static //<- forgive me, this modifies the array inside the header
+#include "GLaDOS/gui/img/Mouse.h"
+const static
+#include "GLaDOS/gui/img/Courier.h"
+
+KernelBuiltinImages::KernelBuiltinImages()
+    :mouse(Mouse_png,Mouse_png_len),
+     courier(Courier_png,Courier_png_len)
+{
+    sanity1=1;
+    sanity2=2;
+}
+
+#include "lodepng.h"
+
+PngImage::PngImage(const void *imageData,uint64_t imageDataBytes)
+    :GraphicsOutput<BGRAPixel>(0,0,0,0)
+{
+    unsigned char *pixels=0;
+    unsigned lwid=0, lht=0;
+    unsigned error=lodepng_decode32(
+        &pixels,&lwid,&lht,
+        (const unsigned char *)imageData,(size_t)imageDataBytes
+    );
+    if (error!=0) panic("Lodepng decode error",error);
+    
+    wid=lwid; ht=lht;
+    pixelsPerRow=wid;
+    frame=Rect(0,wid,0,ht);
+    framebuffer=(BGRAPixel *)pixels;
+    
+    if (true) printSize();
+}
+
+PngImage::~PngImage()
+{
+    gfree(framebuffer);
+}
 
 
 /* UEFI framebuffer access */
@@ -66,6 +122,12 @@ void print_graphics()
     print("Size of framebuffer: ");
     print((int)(graphics.out.wid*graphics.out.ht*sizeof(ScreenPixel)));
     println();
+    
+    // plop a mouse in the top left corner (debug only)
+    GraphicsOutput<ScreenPixel> &framebuffer=graphics.out;
+    WindowManager winmgr(framebuffer);
+    winmgr.mouse.x=100; winmgr.mouse.y=200;
+    winmgr.drawMouse(framebuffer);
 }
 
 
