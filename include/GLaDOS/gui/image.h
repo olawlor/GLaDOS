@@ -34,5 +34,25 @@ protected:
     KernelBuiltinImages(); //<- call load, don't make one yourself.
 };
 
+/// Represents a rasterized font, ready to be drawn onscreen.
+class Font {
+public:
+    /// Load up a font by this name
+    Font(const char *name="Courier",int size=14);
+    
+    /// Load up the default font
+    static Font &load();
+
+    /// Render this UTF-8 text to this location in this image.
+    ///  Returns the new text start point (in pixels).
+    Point draw(const StringSource &text,const Point &start,
+            const ScreenPixel &color,GraphicsOutput<ScreenPixel> &gfx) const;
+
+private:    
+    const GraphicsOutput<BGRAPixel> &chars;
+    Rect charBox;
+};
+
+
 #endif
 

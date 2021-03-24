@@ -35,8 +35,7 @@ const static
 KernelBuiltinImages::KernelBuiltinImages()
     :mouse(Mouse_png,Mouse_png_len),
      courier(Courier_png,Courier_png_len)
-{
-}
+{}
 
 #include "lodepng.h"
 
@@ -60,6 +59,77 @@ PngImage::PngImage(const void *imageData,uint64_t imageDataBytes)
 PngImage::~PngImage()
 {
     gfree(framebuffer);
+}
+
+/* Font rendering */
+static Font *defaultFont=0;
+
+/// Load up the default font
+Font &Font::load()
+{
+    if (!defaultFont) {
+        defaultFont=new Font();
+    }
+    return *defaultFont;
+}
+
+/// Load up a font by this name
+Font::Font(const char *name,int size)
+    :chars(KernelBuiltinImages::load().courier),
+     charBox(0,10,0,15)
+{
+    /// FIXME: check the name and size
+}
+
+/// Render text to this location in this image.
+///  Returns the new text start point (in pixels).
+Point Font::draw(const StringSource &text,const Point &initialStart,
+        const ScreenPixel &color,GraphicsOutput<ScreenPixel> &gfx) const
+{
+    Point start=initialStart;
+    const int stepX=16, stepY=16; //<- pixels per char in chars image
+    const int wrapX=16; //<- chars per row in chars image
+    Point corner(0,-12); // shift from start point (on baseline) to charBox topleft
+    int charWid=9; // <- pixel shift in X per char
+    
+    // Loop over the chars in the StringSource:
+    ByteBuffer buf; int index=0;
+    while (text.get(buf,index++)) 
+        for (unsigned char c:buf) {
+            if (c>=128) { // uh oh, unicode!  Just to a black box.
+                gfx.fillRect(charBox.shifted(start+corner),color);
+                start.x+=charWid;
+            }
+            else if (c>=32) { // printable ASCII
+                // Figure out where we're at in the font image
+                int row=c/wrapX-2;
+                int col=c%wrapX;
+                Point srcStart(stepX*col,stepY*row);
+                chars.colorizeTo(
+                    charBox.shifted(srcStart), // src in font image
+                    color,
+                    charBox.shifted(start+corner), // dest rect in gfx
+                    gfx);
+                start.x+=charWid;
+            }
+            else if (c=='\n') { // newline
+                start.x=initialStart.x;
+                start.y+=charBox.ht();
+            }
+            else if (c=='\t') { // hard tab
+                start.x+=4*charWid;
+            }
+            else { // unknown control char, ignore?
+            }
+            
+            // Check for char-by-char text wrap: if so, fake a newline.
+            if (start.x+charBox.wid()>gfx.wid) { 
+                start.x=initialStart.x;
+                start.y+=charBox.ht();
+            }
+        }
+    
+    return start;
 }
 
 
@@ -123,6 +193,10 @@ void print_graphics()
     WindowManager winmgr(framebuffer);
     winmgr.mouse.x=200; winmgr.mouse.y=50;
     winmgr.drawMouse(framebuffer);
+    
+    // draw some text with our own font
+    Font &f=Font::load();
+    f.draw("Hello! Is any of this making sense?",Point(100,30),0xFFFFFF,framebuffer);
 }
 
 
@@ -196,6 +270,43 @@ void end_process(Process *doomed)
 }
 
 
+/// Draw a text terminal
+class ProcessTerminal : public Process {
+public:
+    Font &font;
+	ProcessTerminal(Window &window_)
+	    :Process(window_), font(Font::load())
+	{}
+	
+	char cmdline[100]={'>',' ',0};
+	int cursor=2; //<- index into cmdline array above
+	int background=0x00001f;
+	int foreground=0xffffff;
+	
+	virtual void run(void)
+	{
+	    gfx.fillRect(gfx.frame,background);
+	    
+	    font.draw(cmdline,Point(0,gfx.ht/2),foreground,gfx);
+	}
+	
+    virtual void handleMouse(MouseState &mouse) {
+        if (mouse.buttonDown(0))
+        {
+            // FIXME: handle mouse clicks, allow command line edit
+        }
+    }
+    virtual void handleKeystroke(const KeyTyped &key) {
+        if (cursor+1<sizeof(cmdline))
+        {
+            cmdline[cursor++]=key.unicode;
+        }
+        else 
+            background=0xff0000; //<- screen goes red once buffer is full
+        
+        // FIXME: handle newlines, etc
+    }
+};
 
 /// Draw a bouncing ball
 class ProcessBall : public Process {
@@ -204,6 +315,7 @@ public:
 	    :Process(window_)
 	{}
 	
+	char text[100]={0};
 	int animation=0;
 	int background=0xff008f;
 	Point userClick;
@@ -215,7 +327,7 @@ public:
 	    if (userClick.x!=0) circle=userClick;
 	    gfx.drawBlendCircle(circle.x,circle.y,40,0x0000ff); 
 	
-	    window.move(Point(2,0)); // move window to the right
+	    //window.move(Point(2,0)); // move window to the right
 		animation+=10; // change brightness per frame
 	}
 	
@@ -256,9 +368,9 @@ void test_graphics()
     WindowManager winmgr(framebuffer);
     
     // Make a few little hardcoded processes, with their own windows:
-    Window *wa=new Window("A",Rect(100,400,300,500));
+    Window *wa=new Window("GTerm",Rect(100,600,410,500));
     winmgr.add(wa);
-    Process *a=new ProcessBall(*wa);
+    Process *a=new ProcessTerminal(*wa);
     a->next=a;
     a->prev=a;
     cur=a;
@@ -278,7 +390,7 @@ void test_graphics()
         cur=cur->next;
         
     // Grab keyboard and mouse events
-        src.waitForEvent(10,winmgr);
+        src.waitForEvent(5,winmgr);
     
     // Update the screen
         winmgr.drawScreen(framebuffer);

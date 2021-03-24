@@ -56,9 +56,13 @@ struct Point {
     Point() {x=y=0;}
     Point(int x_, int y_) :x(x_), y(y_) {}
     
-    // Subtract these two points, giving a relative move
+    /// Subtract these two points, giving a relative move
     Point operator-(const Point &p) const {
         return Point(x-p.x,y-p.y);
+    }
+    /// Add these two points, giving a total shift
+    Point operator+(const Point &p) const {
+        return Point(x+p.x,y+p.y);
     }
 };
 
@@ -112,6 +116,11 @@ struct Rect {
     /// Make a rectangle from these two Spans:
     Rect(const Span &spanX,const Span &spanY)
         :X(spanX), Y(spanY) {}
+    
+    /// Extract the width (x pixels) of this Rect
+    int wid() const { return X.size(); }
+    /// Extract the height (y pixels) of this Rect
+    int ht() const { return Y.size(); }
     
     /// Extract the top-left corner of this Rect
     Point topleft(void) const { return Point(X.lo,Y.lo); }
