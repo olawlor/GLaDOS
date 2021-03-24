@@ -110,7 +110,7 @@ $(DRIVE)_fat32: $(KERNEL)
 	sudo losetup -d /dev/loop9
 
 clean:
-	- rm $(KERNEL) *.o
+	- rm $(KERNEL) $(OBJ)
 
 apt-get:
 	sudo apt-get install build-essential clang lld nasm  mtools qemu-system-x86

@@ -23,7 +23,6 @@ const KernelBuiltinImages &KernelBuiltinImages::load()
     { // finally call actual constructor
         builtinImages=new KernelBuiltinImages();
     }
-    if (builtinImages->sanity2!=2) panic("Borked sanity check: ",builtinImages->sanity2);
     return *builtinImages;
 }
 
@@ -37,8 +36,6 @@ KernelBuiltinImages::KernelBuiltinImages()
     :mouse(Mouse_png,Mouse_png_len),
      courier(Courier_png,Courier_png_len)
 {
-    sanity1=1;
-    sanity2=2;
 }
 
 #include "lodepng.h"
@@ -58,8 +55,6 @@ PngImage::PngImage(const void *imageData,uint64_t imageDataBytes)
     pixelsPerRow=wid;
     frame=Rect(0,wid,0,ht);
     framebuffer=(BGRAPixel *)pixels;
-    
-    if (true) printSize();
 }
 
 PngImage::~PngImage()
@@ -126,7 +121,7 @@ void print_graphics()
     // plop a mouse in the top left corner (debug only)
     GraphicsOutput<ScreenPixel> &framebuffer=graphics.out;
     WindowManager winmgr(framebuffer);
-    winmgr.mouse.x=100; winmgr.mouse.y=200;
+    winmgr.mouse.x=200; winmgr.mouse.y=50;
     winmgr.drawMouse(framebuffer);
 }
 

@@ -101,10 +101,8 @@ public:
         // Bring in a normal arrow shape
         const PngImage &cursor=KernelBuiltinImages::load().mouse;
         
-        int cursorSizeX=11; // pixels onscreen
-        int cursorSizeY=17;
         int x=mouse.x-2; // shift to cursor hotspot
-        int y=mouse.y-2;
+        int y=mouse.y-3;
         Rect cursorRect=cursor.frame.shifted(x,y);
         
         cursor.blendTo(cursor.frame,cursorRect,gfx);

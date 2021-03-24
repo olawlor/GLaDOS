@@ -24,10 +24,8 @@ public:
 /// Hardcoded images baked into the kernel.
 class KernelBuiltinImages {
 public:
-    int sanity1;
     PngImage mouse;
     PngImage courier; // font image, 16x16 pixels
-    int sanity2;
     
     /// Return a reference to a single copy of the loaded images.
     ///  (Avoids global initialization problems by doing this delayed.)
