@@ -32,14 +32,22 @@ LDFLAGS=$(OPTS) $(EFI_LDFLAGS)
 
 # Compile these object files, link the kernel, copy to drive image:
 OBJ=libraries/lodepng.o boot.o graphics.o ui.o io.o util.o util_asm.o run_linux.o
+
+# This is the bootable EFI kernel file
 KERNEL=glados.efi
+
+# This is the bootable drive image file.
+#  This can be used in virtualbox (VirtualBox/bootdrive.vmdk points to it),
+#  or qemu, or it can be copied to a flash drive for use on physical hardware.
 DRIVE=my_efi.hdd
 
 # Run the QEMU simulator with these args:
 QFLAGS=-L . -drive format=raw,file=$(DRIVE) -m 512
 
 
-all: run
+# Default build target: bake the full drive image
+all: $(DRIVE)
+
 
 # Here's how we compile each source file:
 %.o: %.cpp
@@ -69,7 +77,8 @@ dis_nasm: $(KERNEL)
 
 
 # Userspace programs, for testing
-PROGRAMS=APPS/prog APPS/prog_c
+PROGRAMS=APPS/prog
+#  APPS/prog_c
 
 # Assembly, making bare linux syscalls
 APPS/prog: prog.s
