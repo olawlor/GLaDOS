@@ -176,18 +176,9 @@ bool FileDataStringSource::get(ByteBuffer &buf,int index) const
     return true;
 }
 
-
-
-void handle_commands(void)
+/// Run a "goofy one-char command"
+void handle_command(char cmd)
 {
-  println();
-  println("Enter crazy one-char commands here:");
- 
-  while(1) {
-    print("> ");
-    int cmd=read_char();
-    println();
-    
     if (cmd==keycode_esc) { // escape key: just clears screen
       clear_screen();
     }
@@ -294,6 +285,19 @@ void handle_commands(void)
     else {
       println("Unknown command.");
     }
+}
+
+void handle_commands(void)
+{
+  println();
+  println("Enter goofy one-char commands here:");
+ 
+  while(1) {
+    print("> ");
+    int cmd=read_char();
+    println();
+    
+    handle_command(cmd);
     
   } // keep interpreting commands forever
 }

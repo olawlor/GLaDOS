@@ -118,7 +118,8 @@ extern void test_graphics(void);
 
 extern void test_UI(void);
 
-
+/// Run a "crazy one-char command"
+void handle_command(char cmd);
 
 /// Read and execute user commands 
 extern void handle_commands(void);
