@@ -72,6 +72,38 @@ void *memcpy(void *dest, const void *src, size_t n)
     return __builtin_memcpy(dest,src,n);
 }
 
+int strcmp(const char *s1, const char *s2)
+{
+    while (*s1!=0 && *s2!=0) {
+        if (*s1!=*s2) break;
+        s1++; s2++;
+    }
+    // currently at the first different char (or end of either string)
+    unsigned char c1=*s1, c2=*s2;
+    if (c1>c2) return +1;
+    else if (c1<c2) return -1;
+    else return 0;
+}
+
+char *strcpy(char *dest, const char *src)
+{
+    char *ret=dest;
+    while (0!=(*dest++=*src++)) {}
+    return ret;
+}
+char *strncpy(char *dest, const char *src, size_t n)
+{
+   size_t i;
+
+   for (i = 0; i < n && src[i] != '\0'; i++)
+       dest[i] = src[i];
+   for ( ; i < n; i++)
+       dest[i] = '\0';
+
+   return dest;
+}
+
+
 
 /* The compiler seems to want a function with this name as soon
    as you mention a "noexcept" function like operator delete.
