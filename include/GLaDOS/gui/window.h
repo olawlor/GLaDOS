@@ -61,7 +61,8 @@ class WindowManager : public UserEventHandler {
 public:
 /// Make a WindowManager to handle this framebuffer
     WindowManager(GraphicsOutput<ScreenPixel> &framebuffer_)
-        :framebuffer(framebuffer_),
+        :windowTitleFont(Font::load()),
+         framebuffer(framebuffer_),
          backbuffer(framebuffer.wid,framebuffer.ht)
     {
     }
@@ -72,6 +73,9 @@ public:
     void add(Window *w) {
         windows.push(w);
     }
+
+/// Font for window titles
+    const Font &windowTitleFont;
 
 /// Screen draw
     int desktopColor=0x808080;
@@ -116,10 +120,11 @@ public:
 
     struct WindowColors {
         ScreenPixel titlebar; // behind text on the titlebar
+        ScreenPixel title; // text in window title
         ScreenPixel border; // hard border around window
     };
-    WindowColors topColors={ 0x685556, 0xff0000 };
-    WindowColors backColors={ 0x483536, 0xff0000 };
+    WindowColors topColors={ 0x685556, 0xffffff, 0xff0000 };
+    WindowColors backColors={ 0x483536, 0xffffff, 0xff0000 };
 
 
     /// Given a rect for a window, return the rect for the titlebar
@@ -140,6 +145,9 @@ public:
         Rect title=windowToTitlebar(w);
         gfx.shadowRect(title);        
         gfx.fillRect(title,colors.titlebar);
+        
+        windowTitleFont.draw(w.name,title.topleft()+Point(8,20),
+            colors.title,gfx);
     }
     
     /// Draw window decorations (shadow, titlebar, etc) for this window

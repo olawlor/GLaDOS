@@ -35,6 +35,8 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
   setup_IDT();
   print("\nBooted OK!\n");
   
+  test_graphics();
+  
   handle_commands();
 
   return EFI_SUCCESS;

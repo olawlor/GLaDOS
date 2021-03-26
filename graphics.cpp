@@ -76,9 +76,15 @@ Font &Font::load()
 /// Load up a font by this name
 Font::Font(const char *name,int size)
     :chars(KernelBuiltinImages::load().courier),
-     letterBox(0,10,0,15)
+     letterBox(0,10,0,15),
+     fixedWidth(9)
 {
-    /// FIXME: check the name and size
+    /// FIXME: check the name and size, don't just hardcode courier
+}
+
+int Font::charWidth(int c) const
+{
+    return fixedWidth;
 }
 
 /// Render text to this location in this image.
@@ -90,15 +96,14 @@ Point Font::draw(const StringSource &text,const Point &initialStart,
     const int stepX=16, stepY=16; //<- pixels per char in chars image
     const int wrapX=16; //<- chars per row in chars image
     Point corner(0,-12); // shift from start point (on baseline) to charBox topleft
-    int charWid=9; // <- pixel shift in X per char
     
     // Loop over the chars in the StringSource:
     ByteBuffer buf; int index=0;
     while (text.get(buf,index++)) 
         for (unsigned char c:buf) {
-            if (c>=128) { // uh oh, unicode!  Just to a black box.
+            if (c>=128) { // uh oh, unicode!  Just draw a black box.
                 gfx.fillRect(letterBox.shifted(start+corner),color);
-                start.x+=charWid;
+                start.x+=charWidth('m');
             }
             else if (c>=32) { // printable ASCII
                 // Figure out where we're at in the font image
@@ -110,14 +115,14 @@ Point Font::draw(const StringSource &text,const Point &initialStart,
                     color,
                     letterBox.shifted(start+corner), // dest rect in gfx
                     gfx);
-                start.x+=charWid;
+                start.x+=charWidth(c);
             }
             else if (c=='\n') { // newline
                 start.x=initialStart.x;
                 start.y+=letterBox.ht();
             }
             else if (c=='\t') { // hard tab
-                start.x+=4*charWid;
+                start.x+=4*charWidth(' ');
             }
             else { // unknown control char, ignore?
             }
@@ -280,6 +285,7 @@ void end_process(Process *doomed)
 	delete doomed;
 }
 
+bool run_gui=true;
 
 /// Draw a text terminal
 class ProcessTerminal : public Process {
@@ -289,16 +295,53 @@ public:
 	    :Process(window_), font(Font::load())
 	{}
 	
-	char cmdline[100]={'>',' ',0};
-	int cursor=2; //<- index into cmdline array above
-	int background=0x00001f;
-	int foreground=0xffffff;
+	char prompt[100]={'>',' ',0};
+	char cmdline[100]={0};
+	char output[1024]={0};
+	int cursor=0; //<- index into cmdline array above
+	ScreenPixel background=0x00001f;
+	ScreenPixel persistentBackground=0x00001f;
+	ScreenPixel foreground=0xffffff;
+	
+	virtual void drawBackground(void)
+	{
+	    gfx.fillRect(gfx.frame,background);
+	    // Incrementally alpha blend to the persistent background color
+	    background.blend(persistentBackground,50);
+	}
+	
+	Point endOfPrompt;
+	virtual void drawText(void)
+	{
+	    endOfPrompt=font.draw(prompt,Point(0,gfx.ht*1/4),foreground,gfx);
+	    font.draw(cmdline,endOfPrompt,foreground,gfx);
+	    font.draw(output,Point(0,gfx.ht*2/4),foreground,gfx);
+	}
+	
+	virtual void drawCursor(void)
+	{
+	    int cursorColor=0xff0000;
+	    // See the cursor onscreen:
+	    Rect cursorShape(0,1,-12,2); // thin classy rect
+	    //Rect cursorShape(1,3,-12,2); // thicker rect
+	    //Rect cursorShape(1,10,-12,2); // giant block (UNIX or DOS style)
+	    
+	    Point cursorPosition(cursor*font.charWidth(' '),0);
+	    gfx.fillRect(cursorShape.shifted(endOfPrompt+cursorPosition),
+	        cursorColor);
+	}
 	
 	virtual void run(void)
 	{
-	    gfx.fillRect(gfx.frame,background);
-	    
-	    font.draw(cmdline,Point(0,gfx.ht/2),foreground,gfx);
+	    drawBackground();
+	    drawText();
+	    drawCursor();
+	}
+	
+	// Visual indication of "oops", a minor error
+	virtual void oops(void) 
+	{
+        background=0xDF0000;
 	}
 	
     virtual void handleMouse(MouseState &mouse) {
@@ -307,8 +350,54 @@ public:
             // FIXME: handle mouse clicks, allow command line edit
         }
     }
+    virtual void executeCommand(char *cmd) {
+        if (0==strcmp(cmd,"help")) {
+            strcpy(output,"Commands: ls, help, exit");
+        }
+        else if (0==strcmp(cmd,"ls")) {
+            strcpy(output,"Listing!\nWith newlines!");
+        }
+        else if (0==strcmp(cmd,"strtest")) {
+            int out=strcmp("f","foo");
+            if (out>0) strcpy(output,"positive");
+            else if (out<0) strcpy(output,"negative");
+            else strcpy(output,"zero");
+        }
+        else if (0==strcmp(cmd,"exit")) {
+            strcpy(output,"GOODBYE!");
+            run_gui=false;
+        }
+        else if (1==strlen(cmd)) {
+            strcpy(output,"Running goofy one-char command...");
+            clear_screen();
+            handle_command(cmd[0]);
+            pause(); //<- let user read the command output, then back to GUI
+        }
+        else {
+            strcpy(output,"UNRECOGNIZED COMMAND -- ERROR\n");
+            oops();
+        }
+    }
     virtual void handleKeystroke(const KeyTyped &key) {
-        if (cursor+1<sizeof(cmdline))
+        if (key.scancode==4) { // left arrow
+            cursor--;
+            if (cursor<0) { cursor=0; oops(); }
+        }
+        else if (key.scancode==3) { // right arrow
+            if (cmdline[cursor]!=0) cursor++; else oops();
+        }
+        else if (key.unicode=='\r') { // newline
+            executeCommand(cmdline);
+            strncpy(cmdline,"",sizeof(cmdline));
+            cursor=0;
+            return;
+        }
+        else if (key.unicode==8) { // backspace
+            cursor--;
+            if (cursor<0) { cursor=0; oops(); }
+            cmdline[cursor]=0;
+        }
+        else if (cursor+1<sizeof(cmdline))
         {
             cmdline[cursor++]=key.unicode;
         }
@@ -379,14 +468,14 @@ void test_graphics()
     WindowManager winmgr(framebuffer);
     
     // Make a few little hardcoded processes, with their own windows:
-    Window *wa=new Window("GTerm",Rect(100,600,410,500));
+    Window *wa=new Window("GLaTerm",Rect(50,650,450,550));
     winmgr.add(wa);
     Process *a=new ProcessTerminal(*wa);
     a->next=a;
     a->prev=a;
     cur=a;
     
-    Window *wb=new Window("B",Rect(300,700,100,400));
+    Window *wb=new Window("Gradient",Rect(300,700,100,400));
     winmgr.add(wb);
     Process *b=new ProcessGradient(*wb);
     make_process_runnable(b);
@@ -394,7 +483,8 @@ void test_graphics()
     // Connect to keyboard and mouse:
     UserEventSource src;
     
-    while (1) 
+    run_gui=true;
+    while (run_gui) 
     {
     // Run some processes
         cur->run();
@@ -406,6 +496,9 @@ void test_graphics()
     // Update the screen
         winmgr.drawScreen(framebuffer);
     }
+    
+    // Clean up the text console
+    clear_screen();
 }
 
 

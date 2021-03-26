@@ -42,6 +42,9 @@ public:
     
     /// Load up the default font
     static Font &load();
+    
+    /// Return the width, in pixels, of this unicode char (codepoint)
+    virtual int charWidth(int c) const;
 
     /// Render this UTF-8 text to this location in this image.
     ///  Returns the new text start point (in pixels).
@@ -50,7 +53,8 @@ public:
 
 private:    
     const GraphicsOutput<BGRAPixel> &chars;
-    Rect letterBox;
+    Rect letterBox; ///< graphical size of the font
+    int fixedWidth; ///< if a fixed-width font, this is the width
 };
 
 

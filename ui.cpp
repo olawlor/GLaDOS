@@ -188,6 +188,7 @@ bool UserEventSource::waitForEvent(int delayMS,UserEventHandler &handler)
 /// For debugging, the event handler just prints the events
 class PrintHandler : public UserEventHandler {
 public:
+    bool keepRunning=true;
     virtual void handleKeystroke(const KeyTyped &key) {
         print("Keystroke ");
         print((int)key.unicode);
@@ -195,6 +196,8 @@ public:
         print("  scancode="); print((int)key.scancode); 
         print("  modifiers="); print((int)key.modifiers);
         println();
+        
+        if (key.scancode==23) keepRunning=false;
     }
     virtual void handleMouse(MouseState &mouse) {
         print("Mouse XY  ");
@@ -212,7 +215,7 @@ void test_UI(void) {
     UserEventSource src;
     PrintHandler handler;
     println("Waiting for events");
-    while(true) {
+    while(handler.keepRunning) {
         src.waitForEvent(1,handler);
     }
 }
