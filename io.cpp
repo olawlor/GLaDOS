@@ -14,7 +14,7 @@ void print(const StringSource &str) {
   auto xf=xform('\n',"\r\n",str);
   
   // Call UEFI to actually print the string
-  ST->ConOut->OutputString(ST->ConOut,CHAR16ify(xf));
+  ST->ConOut->OutputString(ST->ConOut,CHAR16ify<>(xf));
 }
 
 /// Print a string, plus a newline
@@ -158,7 +158,7 @@ FileDataStringSource FileContents(const StringSource &filename)
     
     EFI_FILE_PROTOCOL* file = 0;
     UEFI_CHECK(root->Open(root,&file,
-        CHAR16ify(slashfix), EFI_FILE_MODE_READ, 
+        CHAR16ify<>(slashfix), EFI_FILE_MODE_READ, 
         EFI_FILE_READ_ONLY | EFI_FILE_HIDDEN | EFI_FILE_SYSTEM));
     
     return FileDataStringSource(file);
