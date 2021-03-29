@@ -199,6 +199,12 @@ void handle_command(char cmd)
     else if (cmd=='d') { // dump gdt
       print_gdt();
     }
+    else if (cmd=='t') { // print thread info
+      print_threads();
+    }
+    else if (cmd=='T') { // start threads
+      test_threads();
+    }
     else if (cmd=='g') { // dump graphics info
       print_graphics();
     }

@@ -115,6 +115,8 @@ extern void print_pagetables(void);
 extern void test_pagetables(void);
 extern void print_graphics(void);
 extern void test_graphics(void);
+extern void print_threads(void);
+extern void test_threads(void);
 
 extern void test_UI(void);
 

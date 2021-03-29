@@ -31,7 +31,7 @@ CFLAGS=$(WARNINGS) $(OPTS)	$(EFI_CFLAGS) -I.  -Iinclude
 LDFLAGS=$(OPTS) $(EFI_LDFLAGS)
 
 # Compile these object files, link the kernel, copy to drive image:
-OBJ=libraries/lodepng.o boot.o graphics.o ui.o io.o util.o util_asm.o run_linux.o
+OBJ=libraries/lodepng.o boot.o graphics.o ui.o io.o util.o util_asm.o run_linux.o thread.o
 
 # This is the bootable EFI kernel file
 KERNEL=glados.efi
@@ -42,7 +42,7 @@ KERNEL=glados.efi
 DRIVE=my_efi.hdd
 
 # Run the QEMU simulator with these args:
-QFLAGS=-L . -drive format=raw,file=$(DRIVE) -m 512
+QFLAGS=-L . -drive format=raw,file=$(DRIVE) -m 512  -smp cores=3
 
 
 # Default build target: bake the full drive image
